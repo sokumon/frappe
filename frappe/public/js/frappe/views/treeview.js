@@ -233,6 +233,7 @@ frappe.views.TreeView = class TreeView {
 	post_render() {
 		var me = this;
 		me.opts.post_render && me.opts.post_render(me);
+		this.remove_primary_action()
 	}
 
 	select_node(node) {
@@ -493,5 +494,12 @@ frappe.views.TreeView = class TreeView {
 				me.page.add_menu_item(menu_item["label"], menu_item["action"]);
 			}
 		});
+	}
+
+	remove_primary_action(){
+		if(!this.can_create){
+			console.log("Cancel")
+			$(".standard-actions").find(".primary-action").hide()
+		}
 	}
 };
