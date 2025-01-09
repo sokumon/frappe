@@ -897,12 +897,8 @@ class TestAddNewUser(BaseTestCommands):
 		self.assertEqual({"Accounts User", "Sales User"}, roles)
 
 
-class TestBenchBuild(BaseTestCommands):
+class TestBenchBuild(IntegrationTestCase):
 	def test_build_assets_size_check(self):
-		with cli(frappe.commands.utils.build, "--force --production --app frappe") as result:
-			self.assertEqual(result.exit_code, 0)
-			self.assertEqual(result.exception, None)
-
 		CURRENT_SIZE = 3.3  # MB
 		JS_ASSET_THRESHOLD = 0.01
 

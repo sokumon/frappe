@@ -205,7 +205,9 @@ class Session:
 	__slots__ = ("_update_in_cache", "data", "full_name", "sid", "time_diff", "user", "user_type")
 
 	def __init__(self, user, resume=False, full_name=None, user_type=None):
-		self.sid = cstr(frappe.form_dict.get("sid") or unquote(frappe.request.cookies.get("sid", "Guest")))
+		self.sid = cstr(
+			frappe.form_dict.pop("sid", None) or unquote(frappe.request.cookies.get("sid", "Guest"))
+		)
 		self.user = user
 		self.user_type = user_type
 		self.full_name = full_name
@@ -301,7 +303,6 @@ class Session:
 		if data:
 			self.data.update({"data": data, "user": data.user, "sid": self.sid})
 			self.user = data.user
-			self.validate_user()
 			validate_ip_address(self.user)
 		else:
 			self.start_as_guest()

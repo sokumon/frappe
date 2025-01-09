@@ -589,4 +589,5 @@ persistent_cache_keys = [
 	"global_search_queue",
 	"monitor-transactions",
 	"rate-limit-counter-*",
+	"rl:*",
 ]

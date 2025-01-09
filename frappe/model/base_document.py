@@ -353,6 +353,7 @@ class BaseDocument:
 
 		if not getattr(value, "name", None):
 			value.__dict__["__islocal"] = 1
+			value.__dict__["__temporary_name"] = frappe.generate_hash(length=10)
 
 		return value
 
