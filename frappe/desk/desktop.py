@@ -576,17 +576,25 @@ def save_new_widget(doc, page, blocks, new_widgets):
 		widgets = _dict(loads(new_widgets))
 
 		if widgets.chart:
-			doc.charts.extend(new_widget(widgets.chart, "Workspace Chart", "charts"))
+			doc.charts.extend(new_widget(len(doc.charts), widgets.chart, "Workspace Chart", "charts"))
 		if widgets.shortcut:
-			doc.shortcuts.extend(new_widget(widgets.shortcut, "Workspace Shortcut", "shortcuts"))
+			doc.shortcuts.extend(
+				new_widget(len(doc.shortcuts), widgets.shortcut, "Workspace Shortcut", "shortcuts")
+			)
 		if widgets.quick_list:
-			doc.quick_lists.extend(new_widget(widgets.quick_list, "Workspace Quick List", "quick_lists"))
+			doc.quick_lists.extend(
+				new_widget(len(doc.quick_lists), widgets.quick_list, "Workspace Quick List", "quick_lists")
+			)
 		if widgets.custom_block:
 			doc.custom_blocks.extend(
-				new_widget(widgets.custom_block, "Workspace Custom Block", "custom_blocks")
+				new_widget(
+					len(doc.custom_blocks), widgets.custom_block, "Workspace Custom Block", "custom_blocks"
+				)
 			)
 		if widgets.number_card:
-			doc.number_cards.extend(new_widget(widgets.number_card, "Workspace Number Card", "number_cards"))
+			doc.number_cards.extend(
+				new_widget(len(doc.number_card), widgets.number_card, "Workspace Number Card", "number_cards")
+			)
 		if widgets.card:
 			doc.build_links_table_from_card(widgets.card)
 
@@ -634,7 +642,7 @@ def clean_up(original_page, blocks):
 			del original_page.links[i : i + v.link_count + 1]
 
 
-def new_widget(config, doctype, parentfield):
+def new_widget(prev_entires_len, config, doctype, parentfield):
 	if not config:
 		return []
 	prepare_widget_list = []
@@ -647,7 +655,10 @@ def new_widget(config, doctype, parentfield):
 		doc.update(widget)
 
 		# Manually Set IDX
-		doc.idx = idx + 1
+		if prev_entires_len == 0:
+			doc.idx = 1 + idx
+		else:
+			doc.idx = prev_entires_len + idx + 1
 
 		# Set Parent Field
 		doc.parentfield = parentfield
