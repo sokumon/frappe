@@ -15,6 +15,15 @@ from frappe.cache_manager import (
 )
 from frappe.core.doctype.custom_role.custom_role import get_custom_allowed_roles
 
+workspace_fields_map = {
+	"shortcut": ["label", "stats_filter", "color"],
+	"chart": ["label"],
+	"link": ["label"],
+	"quick_list": ["label"],
+	"number_card": ["label"],
+	"custom_block": ["label"],
+}
+
 
 def handle_not_exist(fn):
 	@wraps(fn)
@@ -620,26 +629,50 @@ def save_new_widget(doc, page, blocks, new_widgets):
 
 
 def clean_up(original_page, blocks):
-	page_widgets = {}
-
-	for wid in ["shortcut", "card", "chart", "quick_list", "number_card", "custom_block"]:
-		# get list of widget's name from blocks
-		page_widgets[wid] = [x["data"][wid + "_name"] for x in loads(blocks) if x["type"] == wid]
+	# for wid in ["shortcut", "card", "chart", "quick_list", "number_card", "custom_block"]:
+	# 	# get list of widget's name from blocks
+	# 	page_widgets[wid] =
 
 	# shortcut, chart, quick_list, number_card & custom_block cleanup
 	for wid in ["shortcut", "chart", "quick_list", "number_card", "custom_block"]:
 		updated_widgets = []
 		original_page.get(wid + "s").reverse()
-
-		for w in original_page.get(wid + "s"):
-			if w.label in page_widgets[wid] and w.label not in [x.label for x in updated_widgets]:
-				updated_widgets.append(w)
+		widgets = original_page.get(wid + "s")
+		updated_widgets = get_unique_widgets(widgets, workspace_fields_map[wid])
 		original_page.set(wid + "s", updated_widgets)
+		recalculate_idx(widgets)
 
-	# card cleanup
-	for i, v in enumerate(original_page.links):
-		if v.type == "Card Break" and v.label not in page_widgets["card"]:
-			del original_page.links[i : i + v.link_count + 1]
+	card_cleanup(original_page.links, workspace_fields_map["link"])
+	recalculate_idx(original_page.links)
+
+
+def get_unique_widgets(widgets, properties):
+	seen = set()
+	unique_widgets = []
+
+	for w in widgets:
+		key = tuple(getattr(w, prop) for prop in properties)
+		if key not in seen:
+			seen.add(key)
+			unique_widgets.append(w)
+
+	return unique_widgets
+
+
+def card_cleanup(widgets, properties):
+	seen = set()
+	for i, v in enumerate(widgets):
+		key = tuple(getattr(v, prop) for prop in properties)
+		if v.type == "Card Break":
+			if key not in seen:
+				seen.add(key)
+			else:
+				del widgets[i : i + v.link_count + 1]
+
+
+def recalculate_idx(widgets):
+	for i, w in enumerate(widgets):
+		w.idx = i + 1
 
 
 def new_widget(prev_entires_len, config, doctype, parentfield):
