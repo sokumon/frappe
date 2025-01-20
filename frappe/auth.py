@@ -460,9 +460,12 @@ def validate_ip_address(user):
 
 	user_info = frappe.get_cached_doc("User", user)
 	ip_list = user_info.get_restricted_ip_list()
+
 	if not ip_list:
 		return
 
+	# check if request ip is set before comaparing
+	check_request_ip()
 	for ip in ip_list:
 		if frappe.local.request_ip.startswith(ip):
 			return
@@ -713,3 +716,8 @@ def validate_api_key_secret(api_key, api_secret, frappe_authorization_source=Non
 def validate_auth_via_hooks():
 	for auth_hook in frappe.get_hooks("auth_hooks", []):
 		frappe.get_attr(auth_hook)()
+
+
+def check_request_ip():
+	if frappe.local.request_ip is None:
+		frappe.throw(title="Error", msg="Request IP is not set")

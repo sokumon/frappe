@@ -22,7 +22,7 @@ import frappe.rate_limiter
 import frappe.recorder
 import frappe.utils.response
 from frappe import _
-from frappe.auth import SAFE_HTTP_METHODS, UNSAFE_HTTP_METHODS, HTTPRequest, validate_auth
+from frappe.auth import SAFE_HTTP_METHODS, UNSAFE_HTTP_METHODS, HTTPRequest, check_request_ip, validate_auth
 from frappe.middlewares import StaticDataMiddleware
 from frappe.utils import CallbackManager, cint, get_site_name
 from frappe.utils.data import escape_html
@@ -199,6 +199,8 @@ def init_request(request):
 
 	for before_request_task in frappe.get_hooks("before_request"):
 		frappe.call(before_request_task)
+
+	check_request_ip()
 
 
 def setup_read_only_mode():
