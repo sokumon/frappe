@@ -814,6 +814,8 @@ class User(Document):
 
 	def validate_ip_addr(self):
 		# remove whitespace
+		if not self.restrict_ip:
+			return
 		if str.isspace(self.restrict_ip):
 			self.restrict_ip = None
 		else:
