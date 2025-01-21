@@ -814,11 +814,8 @@ class User(Document):
 		)
 
 	def validate_ip_addr(self):
-		# remove whitespace
-		if self.restrict_ip.find(",") != -1:
-			self.restrict_ip = self.restrict_ip.strip()
-		else:
-			self.restrict_ip = ",".join(self.get_restricted_ip_list())
+		self.restrict_ip = self.restrict_ip.strip()
+		self.restrict_ip = ",".join(self.get_restricted_ip_list())
 
 
 @frappe.whitelist()

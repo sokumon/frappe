@@ -464,7 +464,6 @@ def validate_ip_address(user):
 	if not ip_list:
 		return
 
-	# check if request ip is set before comaparing
 	check_request_ip()
 	for ip in ip_list:
 		if frappe.local.request_ip.startswith(ip):
