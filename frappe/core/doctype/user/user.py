@@ -196,7 +196,8 @@ class User(Document):
 		self.validate_allowed_modules()
 		self.validate_user_image()
 		self.set_time_zone()
-		self.validate_ip_addr()
+		if self.restrict_ip:
+			self.validate_ip_addr()
 
 		if self.language == "Loading...":
 			self.language = None
@@ -814,17 +815,10 @@ class User(Document):
 
 	def validate_ip_addr(self):
 		# remove whitespace
-		if not self.restrict_ip:
-			return
-		if str.isspace(self.restrict_ip):
-			self.restrict_ip = None
+		if self.restrict_ip.find(",") != -1:
+			self.restrict_ip = self.restrict_ip.strip()
 		else:
-			if self.restrict_ip.find(",") != -1:
-				ip_string = ""
-				for s in self.restrict_ip.split(","):
-					s.strip()
-					ip_string = s + ","
-				self.restrict_ip = ip_string
+			self.restrict_ip = ",".join(self.get_restricted_ip_list())
 
 
 @frappe.whitelist()
