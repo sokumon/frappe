@@ -814,7 +814,6 @@ class User(Document):
 		)
 
 	def validate_ip_addr(self):
-		self.restrict_ip = self.restrict_ip.strip()
 		self.restrict_ip = ",".join(self.get_restricted_ip_list())
 
 
@@ -1320,7 +1319,7 @@ def get_restricted_ip_list(user):
 	if not user.restrict_ip:
 		return
 
-	return [i.strip() for i in user.restrict_ip.split(",")]
+	return [i.strip() for i in user.restrict_ip.strip().split(",")]
 
 
 @frappe.whitelist(methods=["POST"])
