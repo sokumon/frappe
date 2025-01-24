@@ -200,8 +200,6 @@ def init_request(request):
 	for before_request_task in frappe.get_hooks("before_request"):
 		frappe.call(before_request_task)
 
-	check_request_ip()
-
 
 def setup_read_only_mode():
 	"""During maintenance_mode reads to DB can still be performed to reduce downtime. This
