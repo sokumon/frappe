@@ -198,3 +198,7 @@ cypress/videos
 .helix/
 # Aider AI Chat
 .aider*
+
+portal/node_modules
+frappe/public/portal
+frappe/www/portal.html

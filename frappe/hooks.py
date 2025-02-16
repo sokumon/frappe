@@ -59,6 +59,7 @@ website_route_rules = [
 	{"from_route": "/newsletters", "to_route": "Newsletter"},
 	{"from_route": "/profile", "to_route": "me"},
 	{"from_route": "/app/<path:app_path>", "to_route": "app"},
+	{"from_route": "/portal/<path:app_path>", "to_route": "portal"},
 ]
 
 website_redirects = [
