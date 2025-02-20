@@ -386,8 +386,6 @@ class File(Document):
 
 			if self.name:
 				filters.update({"name": ("!=", self.name)})
-			else:
-				filters.update({"file_name": self.file_name})
 
 			if self.attached_to_doctype and self.attached_to_name:
 				filters.update(
@@ -663,7 +661,8 @@ class File(Document):
 		if duplicate_file:
 			file_doc: File = frappe.get_cached_doc("File", duplicate_file.name)
 			if file_doc.exists_on_disk():
-				self.file_url = duplicate_file.file_url
+				if self.make_file_url() == duplicate_file.file_url:
+					self.file_url = duplicate_file.file_url
 				file_exists = True
 
 		if not file_exists:
@@ -689,6 +688,13 @@ class File(Document):
 		fpath = self.write_file()
 
 		return {"file_name": os.path.basename(fpath), "file_url": self.file_url}
+
+	def make_file(self):
+		safe_file_name = re.sub(r"[/\\%?#]", "_", self.file_name)
+		if self.is_private:
+			self.file_url = f"/private/files/{safe_file_name}"
+		else:
+			self.file_url = f"/files/{safe_file_name}"
 
 	def check_max_file_size(self):
 		from frappe.core.api.file import get_max_file_size
