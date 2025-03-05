@@ -1,24 +1,11 @@
 <template>
-	<div class="max-w-3xl py-12 mx-auto">Welcome to the Portal</div>
+	<div class="h-screen w-screen flex">
+		<PortalSidebar />
+		<!-- other page content -->
+	</div>
 </template>
 
-<script>
+<script setup>
 import { Dialog } from 'frappe-ui'
-
-export default {
-	name: 'Home',
-	data() {
-		return {
-			showDialog: false,
-		}
-	},
-	resources: {
-		ping: {
-			url: 'ping',
-		},
-	},
-	components: {
-		Dialog,
-	},
-}
+import PortalSidebar from '../components/PortalSidebar.vue'
 </script>

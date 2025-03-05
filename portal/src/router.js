@@ -11,6 +11,8 @@ const routes = [
 let router = createRouter({
 	history: createWebHistory('/portal'),
 	routes,
+	linkActiveClass: 'bg-surface-selected shadow-sm',
+	linkExactActiveClass: 'bg-surface-selected shadow-sm',
 })
 
 export default router
