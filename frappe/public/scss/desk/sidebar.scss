@@ -540,7 +540,7 @@ body {
 .layout-side-section {
 	@include get_textstyle("sm", "regular");
 	// padding-right: 30px;
-	min-width: var(--sidebar-width);
+	width: calc(var(--sidebar-width) + 20px);
 	border-left: 1px solid var(--border-color);
 
 	.sidebar-section {
