@@ -6,6 +6,15 @@ frappe.ui.form.on("Energy Point Settings", {
 		if (frm.doc.enabled) {
 			frm.add_custom_button(__("Give Review Points"), show_review_points_dialog);
 		}
+		let app_link = "<a href='https://github.com/frappe/eps' target='_blank'>EPS</a>";
+		frm.dashboard.add_comment(
+			__(
+				"Energy Point System will be removed from Framework in Version 16. Please install {0} app to continue using it.",
+				[app_link]
+			),
+			"yellow",
+			true
+		);
 	},
 });
 

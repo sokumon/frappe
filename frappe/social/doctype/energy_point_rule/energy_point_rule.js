@@ -8,6 +8,15 @@ frappe.ui.form.on("Energy Point Rule", {
 	},
 	refresh(frm) {
 		frm.events.set_field_options(frm);
+		let app_link = "<a href='https://github.com/frappe/eps' target='_blank'>EPS</a>";
+		frm.dashboard.add_comment(
+			__(
+				"Energy Point System will be removed from Framework in Version 16. Please install {0} app to continue using it.",
+				[app_link]
+			),
+			"yellow",
+			true
+		);
 	},
 	for_doc_event(frm) {
 		if (frm.doc.for_assigned_users) {

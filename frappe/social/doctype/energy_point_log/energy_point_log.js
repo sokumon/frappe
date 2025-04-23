@@ -9,6 +9,15 @@ frappe.ui.form.on("Energy Point Log", {
 		} else if (frm.doc.type === "Auto" && frappe.user_roles.includes("System Manager")) {
 			frm.add_custom_button(__("Revert"), () => frm.events.show_revert_dialog(frm));
 		}
+		let app_link = "<a href='https://github.com/frappe/eps' target='_blank'>EPS</a>";
+		frm.dashboard.add_comment(
+			__(
+				"Energy Point System will be removed from Framework in Version 16. Please install {0} app to continue using it.",
+				[app_link]
+			),
+			"yellow",
+			true
+		);
 	},
 	show_revert_dialog(frm) {
 		const revert_dialog = new frappe.ui.Dialog({
