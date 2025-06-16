@@ -289,7 +289,7 @@ Cypress.Commands.add("dialog", (opts) => {
 				},
 			});
 
-			var d = new frappe.ui.Dialog(opts);
+	var d = new frappe.ui.Dialog(opts);
 			d.show();
 			return d;
 		});
