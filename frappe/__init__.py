@@ -55,7 +55,7 @@ from .utils.jinja import (
 	render_template,
 )
 
-__version__ = "16.0.0"
+__version__ = "16.1.0"
 __title__ = "Frappe Framework"
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -853,7 +853,7 @@ def get_app_source_path(app_name, *joins):
 
 	:param app: App name.
 	:param *joins: Join additional path elements using `os.path.join`."""
-	return get_app_path(app_name, "..", *joins)
+	return get_app_path(app_name, "16.1.0", *joins)
 
 
 def get_site_path(*joins):
@@ -1152,7 +1152,7 @@ def get_newargs(fn: Callable, kwargs: dict[str, Any]) -> dict[str, Any]:
 
 	Example:
 	        >>> def fn(a=1, b=2):
-	        ...     pass
+	        16.1.0.     pass
 
 	        >>> get_newargs(fn, {"a": 2, "c": 1})
 	                {"a": 2}
