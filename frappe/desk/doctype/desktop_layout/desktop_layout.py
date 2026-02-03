@@ -5,6 +5,7 @@ import json
 
 import frappe
 from frappe.desk.doctype.desktop_icon.desktop_icon import add_workspace_to_desktop
+from frappe.desk.doctype.desktop_icon.desktop_icon import clear_desktop_icons_cache
 from frappe.model.document import Document
 
 
@@ -38,6 +39,8 @@ def save_layout(user: str, layout: str, new_icons: str):
 		desktop_layout = frappe.new_doc("Desktop Layout")
 		desktop_layout.user = frappe.session.user
 
+	_sync_icon_renames(layout)
+
 	if layout:
 		desktop_layout.layout = json.dumps(layout)
 		desktop_layout.save()
@@ -56,6 +59,41 @@ def save_layout(user: str, layout: str, new_icons: str):
 		desktop_icon.save()
 
 	return {"layout": layout}
+
+
+def _sync_icon_renames(layout):
+	"""Apply label renames from layout to Desktop Icon docs so they persist across refresh."""
+	if not layout or not isinstance(layout, list):
+		return
+	for icon in layout:
+		old_name = icon.get("name")
+		new_label = icon.get("label")
+		if not old_name or not new_label or old_name == new_label:
+			continue
+		if not frappe.db.exists("Desktop Icon", old_name):
+			continue
+		# Update children's parent_icon first, then rename the doc
+		frappe.db.sql(
+			"update `tabDesktop Icon` set parent_icon = %(new)s where parent_icon = %(old)s",
+			{"new": new_label, "old": old_name},
+		)
+		doc = frappe.get_doc("Desktop Icon", old_name)
+		doc.label = new_label
+		doc.save()
+		icon["name"] = new_label
+		clear_desktop_icons_cache()
+
+
+@frappe.whitelist()
+def get_layout():
+	"""Return the current user's saved desktop layout. Used on desk load to avoid stale cached HTML."""
+	try:
+		doc = frappe.get_doc("Desktop Layout", frappe.session.user)
+		if doc.layout:
+			return json.loads(doc.layout)
+	except frappe.DoesNotExistError:
+		frappe.clear_last_message()
+	return None
 
 
 @frappe.whitelist()
