@@ -509,8 +509,16 @@
     position: relative;
 }
 
-.title-widget:hover .title-input-label {
+.title-widget--read-only {
+    cursor: default;
+}
+
+.title-widget--editable:hover .title-input-label {
     opacity: 0.9;
+}
+
+.desktop-modal-heading .title-widget--read-only .title-input-label:hover {
+    background-color: transparent;
 }
 
 .desktop-modal-heading .title-widget .title-input-label {
@@ -522,7 +530,7 @@
     transition: background-color 0.15s ease;
 }
 
-.desktop-modal-heading .title-widget:hover .title-input-label {
+.desktop-modal-heading .title-widget--editable:hover .title-input-label {
     background-color: rgba(255, 255, 255, 0.08);
 }
 

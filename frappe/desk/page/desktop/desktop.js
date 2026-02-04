@@ -1038,7 +1038,8 @@ class DesktopIcon {
 				let modal = frappe.desktop_utils.create_desktop_modal(me);
 				modal.setup(me.icon_title, me.child_icons, 4);
 				let $title = modal.modal.find(".modal-title");
-				let title = new InlineEditor($title, this.icon_data.label, function (
+				const edit_mode = frappe.pages["desktop"].desktop_page.edit_mode;
+				let title = new InlineEditor($title, this.icon_data.label, edit_mode, function (
 					old_value,
 					new_value
 				) {
@@ -1051,11 +1052,8 @@ class DesktopIcon {
 
 					frappe.pages["desktop"].desktop_page.update();
 
-					let desktop_page = frappe.pages["desktop"].desktop_page;
-					if (desktop_page.edit_mode) {
-						save_desktop(frappe.new_desktop_icons);
-					} else {
-						desktop_page.save_layout(frappe.desktop_icons, []);
+					if (!frappe.pages["desktop"].desktop_page.edit_mode) {
+						frappe.pages["desktop"].desktop_page.save_layout(frappe.desktop_icons, []);
 					}
 				});
 				modal.show();
@@ -1245,10 +1243,14 @@ class IconsPane {
 }
 
 class InlineEditor {
-	constructor(container, initialValue = "", onRename = () => {}) {
+	constructor(container, initialValue = "", editMode = false, onRename = () => {}) {
 		this.container = container;
 		this.currentValue = initialValue;
-		this.onRename = onRename;
+		this.editMode = editMode;
+		this.onRename = typeof editMode === "function" ? editMode : onRename;
+		if (typeof editMode === "function") {
+			this.editMode = false;
+		}
 		this.isEditing = false;
 
 		this.render();
@@ -1256,8 +1258,10 @@ class InlineEditor {
 	}
 
 	render() {
+		const tooltip = this.editMode ? __("Click to edit") : "";
+		const editableClass = this.editMode ? "title-widget--editable" : "title-widget--read-only";
 		this.container.html(`
-			<div class="title-widget" title="${__("Click to edit")}">
+			<div class="title-widget ${editableClass}" title="${tooltip}">
 				<span class="title-input-label">${__(this.currentValue)}</span>
 				<div class="title-input-wrapper" style="display: none;">
 					<input type="text" class="title-input" />
@@ -1274,6 +1278,7 @@ class InlineEditor {
 	bindEvents() {
 		this.label.on("click", (e) => {
 			e.stopPropagation();
+			if (!frappe.pages["desktop"].desktop_page.edit_mode) return;
 			this.startEditing();
 		});
 
