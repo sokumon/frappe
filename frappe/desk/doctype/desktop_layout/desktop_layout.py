@@ -39,8 +39,6 @@ def save_layout(user: str, layout: str, new_icons: str):
 		desktop_layout = frappe.new_doc("Desktop Layout")
 		desktop_layout.user = frappe.session.user
 
-	_sync_icon_renames(layout)
-
 	if layout:
 		desktop_layout.layout = json.dumps(layout)
 		desktop_layout.save()
@@ -59,29 +57,6 @@ def save_layout(user: str, layout: str, new_icons: str):
 		desktop_icon.save()
 
 	return {"layout": layout}
-
-
-def _sync_icon_renames(layout):
-	"""Apply label renames from layout to Desktop Icon docs so they persist across refresh."""
-	if not layout or not isinstance(layout, list):
-		return
-	for icon in layout:
-		old_name = icon.get("name")
-		new_label = icon.get("label")
-		if not old_name or not new_label or old_name == new_label:
-			continue
-		if not frappe.db.exists("Desktop Icon", old_name):
-			continue
-		# Update children's parent_icon first, then rename the doc
-		frappe.db.sql(
-			"update `tabDesktop Icon` set parent_icon = %(new)s where parent_icon = %(old)s",
-			{"new": new_label, "old": old_name},
-		)
-		doc = frappe.get_doc("Desktop Icon", old_name)
-		doc.label = new_label
-		doc.save()
-		icon["name"] = new_label
-		clear_desktop_icons_cache()
 
 
 @frappe.whitelist()
