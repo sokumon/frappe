@@ -5,7 +5,6 @@ import json
 
 import frappe
 from frappe.desk.doctype.desktop_icon.desktop_icon import add_workspace_to_desktop
-from frappe.desk.doctype.desktop_icon.desktop_icon import clear_desktop_icons_cache
 from frappe.model.document import Document
 
 
