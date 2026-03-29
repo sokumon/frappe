@@ -33,10 +33,7 @@ app_include_js = [
 	"telemetry.bundle.js",
 ]
 
-app_include_css = [
-	"desk.bundle.css",
-	"report.bundle.css",
-]
+app_include_css = ["desk_tw.bundle.css"]
 app_include_icons = [
 	"/assets/frappe/icons/lucide/icons.svg",
 	"/assets/frappe/icons/timeless/icons.svg",

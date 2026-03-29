@@ -13,6 +13,7 @@ const postCssPlugin = require("@frappe/esbuild-plugin-postcss2").default;
 const ignore_assets = require("./ignore-assets");
 const sass_options = require("./sass_options");
 const build_cleanup_plugin = require("./build-cleanup");
+const tailwind = require("tailwindcss");
 
 const {
 	app_list,
@@ -255,7 +256,7 @@ function get_all_files_to_build(apps) {
 	for (let app of apps) {
 		let public_path = get_public_path(app);
 		include_patterns.push(
-			path.resolve(public_path, "**", "*.bundle.{js,ts,css,sass,scss,less,styl,jsx}")
+			path.resolve(public_path, "**", "*.bundle.{js,ts,css,less,styl,jsx}")
 		);
 		ignore_patterns.push(
 			path.resolve(public_path, "node_modules"),
@@ -311,6 +312,7 @@ function build_style_files({ files, outdir, rtl_style = false }) {
 	];
 
 	plugins.push(require("autoprefixer"));
+	plugins.push(tailwind);
 	return esbuild.build(get_build_options(files, outdir, build_plugins));
 }
 
