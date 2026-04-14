@@ -1,3 +1,35 @@
+import "./libs.bundle.js";
+import "./frappe/format.js";
+import "./frappe/translate.js";
+import "./frappe/provide.js";
+import "./frappe/ui/keyboard.js";
+import "./frappe/ui/messages.js";
+// import "./frappe/ui/sidebar/sidebar.js";
+import "./frappe/views/factory.js";
+import "./frappe/model/model.js";
+import "./frappe/db.js";
+import "./frappe/model/meta.js";
+import "./frappe/model/sync.js";
+import "./frappe/model/create_new.js";
+import "./frappe/model/perm.js";
+import "./frappe/model/workflow.js";
+import "./frappe/model/user_settings.js";
+import "./frappe/utils/utils.js";
+import "./frappe/dom.js";
+import "./frappe/request.js";
+import "./frappe/utils/datatype.js";
+// import "./frappe/router.js"
+import "./frappe/utils/common.js";
+import "./frappe/utils/user.js";
+import "./frappe/form/formatters.js";
+import "./frappe/utils/datetime.js";
+import "./frappe/utils/pretty_date.js";
+import "./frappe/utils/number_format.js";
+import "./frappe/utils/help.js";
+import "./frappe/socketio_client.js";
+import "./frappe/defaults.js";
+import "./frappe/assets.js";
+import "./frappe/ui/sort_selector.js";
 import "./frappe/ui/listing.html";
 
 import "./frappe/model/indicator.js";

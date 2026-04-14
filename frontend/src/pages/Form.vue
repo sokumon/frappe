@@ -99,7 +99,6 @@ const options = [
 onMounted(async () => {
 	frappe.model.with_doctype('Item', function () {
 		frappe.ui.form.Form.prototype.add_custom_button = function (label, callback, grp) {
-			debugger
 			if (!grp) {
 				custom_buttons.value[label] = []
 				custom_buttons.value[label].push({ label: label, onClick: callback })

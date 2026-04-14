@@ -90,22 +90,29 @@ frappe.ui.form.Form = class FrappeForm {
 
 		let is_single_column = this.doctype === "DocType" ? true : this.meta.hide_toolbar;
 
-		frappe.ui.make_app_page({
-			parent: this.wrapper,
-			single_column: is_single_column,
-			sidebar_position: "Right",
-		});
-		this.page = this.wrapper.page;
-		this.layout_main = this.page.main.get(0);
+		if (!frappe.vue_shell) {
+			frappe.ui.make_app_page({
+				parent: this.wrapper,
+				single_column: is_single_column,
+				sidebar_position: "Right",
+			});
+			this.page = this.wrapper.page;
+			this.layout_main = this.page.main.get(0);
+		} else {
+			this.page = this.wrapper;
+			this.layout_main = $(this.page).get(0);
+		}
 
 		this.$wrapper.on("hide", () => {
 			this.script_manager.trigger("on_hide");
 		});
 
-		this.toolbar = new frappe.ui.form.Toolbar({
-			frm: this,
-			page: this.page,
-		});
+		if (!frappe.vue_shell) {
+			this.toolbar = new frappe.ui.form.Toolbar({
+				frm: this,
+				page: this.page,
+			});
+		}
 
 		this.viewers = new frappe.ui.form.FormViewers({
 			frm: this,
@@ -133,7 +140,7 @@ frappe.ui.form.Form = class FrappeForm {
 
 			this.footer = new frappe.ui.form.Footer({
 				frm: this,
-				parent: $("<div>").appendTo(this.page.main.parent()),
+				parent: $("<div>").appendTo(this.page),
 			});
 			$("body").attr("data-sidebar", 1);
 		}
@@ -596,7 +603,7 @@ frappe.ui.form.Form = class FrappeForm {
 			frappe.after_ajax(function () {
 				me.trigger_link_fields();
 			});
-
+			if (frappe.vue_shell) return;
 			frappe.breadcrumbs.add(me.meta.module, me.doctype);
 		});
 
@@ -610,16 +617,17 @@ frappe.ui.form.Form = class FrappeForm {
 		if (!this.meta.istable) {
 			this.layout.doc = this.doc;
 			this.layout.attach_doc_and_docfields();
-
-			if (frappe.boot.desk_settings.form_sidebar) {
-				this.sidebar = new frappe.ui.form.Sidebar({
-					frm: this,
-					page: this.page,
-					toolbar: this.toolbar,
-				});
-				this.sidebar.make();
-			} else {
-				this.page.sidebar.hide();
+			if (!frappe.vue_shell) {
+				if (frappe.boot.desk_settings.form_sidebar) {
+					this.sidebar = new frappe.ui.form.Sidebar({
+						frm: this,
+						page: this.page,
+						toolbar: this.toolbar,
+					});
+					this.sidebar.make();
+				} else {
+					this.page.sidebar.hide();
+				}
 			}
 
 			// clear layout message
@@ -773,6 +781,7 @@ frappe.ui.form.Form = class FrappeForm {
 	}
 
 	configure_breadcrumb_width() {
+		if (frappe.vue_shell) return;
 		let el = this.page.page_actions[0];
 		const rect = el.getBoundingClientRect();
 		let is_outside = cint(rect.right) > cint(document.documentElement.clientWidth);
@@ -898,10 +907,13 @@ frappe.ui.form.Form = class FrappeForm {
 		if (_crumb) {
 			_crumb.layout_name = this.doctype_layout?.name || null;
 		}
-		frappe.breadcrumbs.update();
+		if (!frappe.vue_shell) frappe.breadcrumbs.update();
 
 		this.show_submit_message();
-		this.clear_custom_buttons();
+		if (!frappe.vue_shell) {
+			this.clear_custom_buttons();
+		}
+
 		this.show_web_link();
 		this.show_report_bug_link();
 		this.show_workflow_read_only_banner();

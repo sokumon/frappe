@@ -169,8 +169,16 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	setup_page() {
-		this.page = this.parent.page;
-		this.$page = $(this.parent);
+		if (frappe.vue_shell) {
+			this.page = this.parent;
+			this.$page = $(this.page);
+			this.page.main = this.$page;
+			this.page.page_form = this.$page.find(".page-form");
+		} else {
+			this.page = this.parent.page;
+			this.$page = $(this.parent);
+		}
+
 		this.page.main.addClass("layout-main-list");
 		this.page.page_form.removeClass("row").addClass("flex");
 		this.hide_page_form && this.page.page_form.hide();
@@ -178,6 +186,7 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	setup_page_head() {
+		if (frappe.vue_shell) return;
 		this.set_breadcrumbs();
 		this.set_title();
 		this.set_menu_items();
@@ -188,6 +197,7 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	setup_view_menu() {
+		if (frappe.vue_shell) return;
 		if (frappe.boot.desk_settings.view_switcher && !this.meta.force_re_route_to_default_view) {
 			const icon_map = {
 				Image: "image",
@@ -301,6 +311,7 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	setup_filter_area() {
+		if (frappe.vue_shell) return;
 		if (this.hide_filters) return;
 		this.filter_area = new FilterArea(this);
 
@@ -312,6 +323,7 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	setup_sort_selector() {
+		if (frappe.vue_shell) return;
 		if (this.hide_sort_selector) return;
 		this.sort_selector = new frappe.ui.SortSelector({
 			parent: this.$filter_section,

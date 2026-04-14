@@ -28,6 +28,7 @@ app_include_js = [
 	"controls.bundle.js",
 	"report.bundle.js",
 	"telemetry.bundle.js",
+	"form_vue_shell.bundle.js",
 ]
 
 app_include_css = [

@@ -57,7 +57,6 @@ frappe.router.get_sub_path = function() {
 frappe.route_hooks = {}
 frappe.set_route = function(view_name, entity_name){
   let view = frappe.router.unslug(view_name);
-  debugger
   router.push({ name: view , params: { reportName: entity_name } })
 }
 frappe.router.unslug = function(slugs) {

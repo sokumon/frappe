@@ -198,7 +198,7 @@ frappe.ui.form.ControlInput = class ControlInput extends frappe.ui.form.Control 
 		this.label_span.innerHTML =
 			(icon ? '<i class="' + icon + '"></i> ' : "") +
 				__(this.df.label, null, this.df.parent) || "&nbsp;";
-		this.show_description_on_click();
+		if (!frappe.vue_shell) this.show_description_on_click();
 		this._label = this.df.label;
 	}
 	show_description_on_click() {

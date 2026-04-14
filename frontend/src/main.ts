@@ -61,7 +61,6 @@ async function initFrappe() {
     appendStyles(values.app_include_css)
     if (window.system_timezone) setConfig('systemTimezone', window.system_timezone)
     window.frappe._router = router
-    override()
     app.mount('#app')
 }
 
@@ -70,7 +69,3 @@ app.use(router)
 app.use(resourcesPlugin)
 
 app.component('Button', Button)
-
-function override(){
-    frappe.ui.Dialog = dialog
-}

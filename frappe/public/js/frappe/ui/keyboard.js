@@ -362,7 +362,6 @@ frappe.ui.keys.add_shortcut({
 	},
 	description: __("Open console"),
 });
-
 $.fn.enterKey = function (fnc) {
 	return this.each(function () {
 		$(this).keypress(function (ev) {

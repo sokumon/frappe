@@ -89,7 +89,6 @@ const container = useTemplateRef('list-view-container')
 onMounted(async () => {
 	frappe.realtime.init()
 	frappe.views.ListView.prototype.set_primary_action = function () {
-		debugger
 		if (this.can_create && !frappe.boot.read_only) {
 			const doctype_name = __(frappe.router.doctype_layout) || __(this.doctype)
 			const add_button_label = __('Add {0}', [doctype_name], 'Primary action in list view')

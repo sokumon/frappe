@@ -536,7 +536,6 @@ body.full-width {
 .form-tabs-list {
 	position: sticky;
 	background-color: var(--card-bg);
-	z-index: 5;
 	transition: 0.5s top;
 	border-bottom: 1px solid var(--border-color);
 	border-radius: var(--radius-md) var(--radius-md) 0 0;

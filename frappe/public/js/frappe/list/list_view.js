@@ -82,6 +82,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	show_skeleton() {
+		if (frappe.vue_shell) return;
 		this.$list_skeleton = this.parent.page.container.find(".list-skeleton");
 		if (!this.$list_skeleton.length) {
 			this.$list_skeleton = $(`
@@ -101,6 +102,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	hide_skeleton() {
+		if (frappe.vue_shell) return;
 		this.$list_skeleton && this.$list_skeleton.hide();
 		this.parent.page.container.find(".layout-main").show();
 	}
@@ -194,6 +196,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	setup_page_head() {
+		if (frappe.vue_shell) return;
 		super.setup_page_head();
 		this.set_primary_action();
 		this.set_actions_menu_items();
@@ -747,6 +750,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	freeze() {
+		if (frappe.vue_shell) return;
 		if (this.list_view_settings && !this.list_view_settings.disable_count) {
 			this.get_count_element().html(
 				`<span>${__("Refreshing", null, "Document count in list view")}...</span>`
@@ -830,6 +834,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	toggle_actions_menu_button(toggle) {
+		if (frappe.vue_shell) return;
 		if (toggle) {
 			this.page.show_actions_menu();
 			this.page.clear_primary_action();
@@ -846,7 +851,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		if (this.$result.find(".list-row-head").length === 0) {
 			// append header once
 			this.$result.prepend(this.get_header_html());
-
+			if (frappe.vue_shell) return true;
 			if (this.filter_area.filter_list.get_filter_value("_liked_by")) {
 				// if there is a liked fitler, then add liked
 				this.$result.find(".list-liked-by-me").addClass("liked");
@@ -1782,8 +1787,11 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		if (this.settings.get_form_link) {
 			return this.settings.get_form_link(doc);
 		}
-
-		return `/desk/${encodeURIComponent(
+		let desk_prefix = "/desk";
+		if (frappe.vue_shell) {
+			desk_prefix = "/newdesk";
+		}
+		return `${desk_prefix}/${encodeURIComponent(
 			frappe.router.slug(frappe.router.doctype_layout || this.doctype)
 		)}/${encodeURIComponent(cstr(doc.name))}`;
 	}
@@ -2199,6 +2207,7 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		});
 
 		let me = this;
+		if (frappe.vue_shell) return;
 		this.page.actions_btn_group.on("show.bs.dropdown", () => {
 			me.toggle_workflow_actions();
 		});
