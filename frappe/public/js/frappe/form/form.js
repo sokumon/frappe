@@ -137,10 +137,17 @@ frappe.ui.form.Form = class FrappeForm {
 			// 	label: __("Activity"),
 			// 	fieldname: 'timeline'
 			// });
+			// To append the footer correctly if in vue shell or in desk
+			let appendto;
+			if (frappe.vue_shell) {
+				appendto = this.page;
+			} else {
+				appendto = this.page.main.parent();
+			}
 
 			this.footer = new frappe.ui.form.Footer({
 				frm: this,
-				parent: $("<div>").appendTo(this.page),
+				parent: $("<div>").appendTo(appendto),
 			});
 			$("body").attr("data-sidebar", 1);
 		}

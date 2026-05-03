@@ -12,7 +12,7 @@ import CallLogs from '~icons/lucide/phone'
 import Contacts from '~icons/lucide/user-check'
 import Leads from '~icons/lucide/users'
 import { Sidebar, Button, Dropdown } from 'frappe-ui'
-import { Breadcrumbs } from 'frappe-ui'
+import { Breadcrumbs, Badge } from 'frappe-ui'
 import LucideHouse from '~icons/lucide/house'
 import LucideView from '~icons/lucide/user-star'
 import { useTemplateRef, onMounted, onUnmounted, onSetup, watch } from 'vue'
@@ -20,7 +20,9 @@ import Moon from '~icons/lucide/moon'
 import Settings from '~icons/lucide/settings'
 import User from '~icons/lucide/User'
 import router from '@/router'
-
+import registerCheck from '@/composables/check.js'
+import registerSelect from '@/composables/select.js'
+import registerDate from '@/composables/date.js'
 function toggleTheme() {
 	const currentTheme = document.documentElement.getAttribute('data-theme')
 	const newTheme = currentTheme === 'dark' ? 'light' : 'dark'
@@ -112,58 +114,78 @@ onMounted(async () => {
 			}
 			frappe.custom_buttons = custom_buttons.value
 		}
+		// frappe.ui.form.ControlCheck = check
+		// ;
+		let check = registerCheck()
+		frappe.ui.form.ControlCheck = check
+		let select = registerSelect()
+		frappe.ui.form.ControlSelect = select
+		let date = registerDate()
+		frappe.ui.form.ControlDate = date
+		frappe.ui.form.Form.prototype.script_manager = {
+			trigger: async function (name, callback) {
+				console.log(name, callback)
+			},
+		}
 		form = new frappe.ui.form.Form('Item', formcontainer.value, true)
 
 		// }
 		frappe.model.with_doc('Item', 'SKU010', (name, r) => {
 			if (r && r['403']) return // not permitted
+			let doc = frappe.get_doc('Item', 'SKU010')
+			let indicator = frappe.get_indicator(doc)
+			debugger
 			form.refresh('SKU010')
-
+			if (indicator.length) {
+				theme.value = indicator[1]
+				badgeContent.value = indicator[0]
+			}
 			const breadcrumbs = computed(() => {
 				const currRoute = router.query.view
 				return currRoute
 			})
-
-			const is_dirty = ref(form.is_dirty())
-
-			watch(
-				() => form.is_dirty(),
-				(newVal) => {
-					console.log(newVal)
-					is_dirty.value = newVal
-				}
-			)
+			console.log(form.$wrapper)
+			form.$wrapper.on('dirty', function () {
+				// Show badge as dirty
+				badgeContent.value = 'Not Saved'
+				theme.value = 'orange'
+			})
 		})
 	})
 })
 function save() {
 	form.save('Save')
 }
+
 import { Avatar } from 'frappe-ui'
+let theme = ref('grey')
+let badgeContent = ref('status')
 </script>
 
 <template>
 	<Sidebar :header="crmSidebar.header" :sections="crmSidebar.sections" />
 	<div class="flex-1 flex flex-col h-full overflow-auto">
 		<nav class="bg-surface-white border-b px-2 py-2.5 h-12 flex justify-between w-full">
-			<Breadcrumbs
-				:items="[
-					{ icon: LucideHouse, route: { name: 'Home' } },
-					{ label: 'Stock', route: '/stock' },
-					{
-						label: 'Item',
-						route: '/item',
-					},
-					{
-						label: 'SKU010',
-					},
-				]"
-			>
-				<template #prefix="{ item }">
-					<component :is="item.icon" class="size-4" />
-				</template>
-			</Breadcrumbs>
-			<!-- <Dropdown :options /> -->
+			<div class="flex align-items-center gap-2">
+				<Breadcrumbs
+					:items="[
+						{ icon: LucideHouse, route: { name: 'Home' } },
+						{ label: 'Stock', route: '/stock' },
+						{
+							label: 'Item',
+							route: '/item',
+						},
+						{
+							label: 'SKU010',
+						},
+					]"
+				>
+					<template #prefix="{ item }">
+						<component :is="item.icon" class="size-4" />
+					</template>
+				</Breadcrumbs>
+				<Badge :theme="theme" size="lg"> {{ badgeContent }}</Badge>
+			</div>
 			<div class="flex gap-2">
 				<Dropdown
 					v-if="Object.keys(custom_buttons).length"
