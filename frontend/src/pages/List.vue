@@ -128,7 +128,7 @@ onMounted(async () => {
 				<Button variant="solid">{{ primary_action_label }}</Button>
 			</div>
 		</nav>
-		<div ref="list-view-container" class="list-view-container w-full h-full">
+		<div ref="list-view-container" class="old-desk-view list-view-container w-full h-full">
 			<div class="page-form"></div>
 		</div>
 	</div>

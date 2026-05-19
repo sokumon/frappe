@@ -199,7 +199,7 @@ let badgeContent = ref('status')
 		</nav>
 		<div
 			ref="form-view-container"
-			class="form-view-container w-full h-full flex flex-col"
+			class="old-desk-view form-view-container w-full h-full flex flex-col"
 		></div>
 		<div class="form-sidebar flex"></div>
 	</div>

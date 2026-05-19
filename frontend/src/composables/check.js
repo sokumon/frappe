@@ -17,10 +17,13 @@ export default function registerCheck() {
 			this.slots = {}
 			let vnode = h(Checkbox, this.props, this.slots)
 			render(vnode, this.$wrapper.get(0))
+			this.$wrapper.get(0).lastChild.classList.add('tw')
 		}
 		set_label() {}
 		make_wrapper() {
-			this.$wrapper = $(`<div class="form-group frappe-control"></div>`).appendTo(this.parent)
+			this.$wrapper = $(`<div class=" form-group frappe-control"></div>`).appendTo(
+				this.parent
+			)
 		}
 	}
 }

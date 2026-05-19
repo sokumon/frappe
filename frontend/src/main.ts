@@ -42,7 +42,7 @@ function appendStyles(styles){
             linkEl.type = "text/css";
             linkEl.rel = "stylesheet";
             linkEl.href = style;
-            document.body.appendChild(linkEl)
+            document.head.appendChild(linkEl)
         }))
     
 }
