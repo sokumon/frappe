@@ -3,11 +3,12 @@
 // Bootstrap :root CSS custom properties — global, outside @scope
 @import "~bootstrap/scss/root";
 
-// Modals are appended to <body>, outside .old-desk-view, so they must be global
+// Modal and backdrop are appended to <body>, outside .old-desk-view
+@import "~bootstrap/scss/modal";
+@import "../common/modal";
 
-@scope (.old-desk-view) to (.tw) {
+@scope (.old-desk-view, .modal) to (.tw) {
 	@import "bootstrap-components";
-
 	@import "../common/mixins.scss";
 	@import "../common/global.scss";
 	@import "../common/icons.scss";
@@ -61,7 +62,4 @@
 	@import "menu";
 	@import "sidebar_header";
 	@import "sidebar_card";
-}
-@scope ([class^="modal-"]) {
-	@import "../common/modal";
 }
