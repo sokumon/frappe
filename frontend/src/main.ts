@@ -4,7 +4,7 @@ import App from './App.vue'
 import './index.css'
 import dialog from "@/composables/dialog.js"
 import { Button, setConfig, frappeRequest, resourcesPlugin } from 'frappe-ui'
-
+import { spritePlugin } from "frappe-ui/icons"
 async function appendScripts(scripts) {
     if (!scripts?.length) return
 
@@ -67,5 +67,5 @@ async function initFrappe() {
 initFrappe().catch(console.error)
 app.use(router)
 app.use(resourcesPlugin)
-
+app.use(spritePlugin)
 app.component('Button', Button)
