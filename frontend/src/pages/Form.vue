@@ -13,6 +13,7 @@ import Contacts from '~icons/lucide/user-check'
 import Leads from '~icons/lucide/users'
 import { Sidebar, Button, Dropdown } from 'frappe-ui'
 import { Breadcrumbs, Badge } from 'frappe-ui'
+import OldDeskView from '@/components/OldDeskView.vue'
 import LucideHouse from '~icons/lucide/house'
 import LucideView from '~icons/lucide/user-star'
 import { useTemplateRef, onMounted, onUnmounted, onSetup, watch } from 'vue'
@@ -127,7 +128,7 @@ onMounted(async () => {
 				console.log(name, callback)
 			},
 		}
-		form = new frappe.ui.form.Form('Item', formcontainer.value, true)
+		form = new frappe.ui.form.Form('Item', formcontainer.value.el, true)
 
 		// }
 		frappe.model.with_doc('Item', 'SKU010', (name, r) => {
@@ -197,10 +198,10 @@ let badgeContent = ref('status')
 				<Button variant="solid" @click="save"> Save</Button>
 			</div>
 		</nav>
-		<div
+		<OldDeskView
 			ref="form-view-container"
-			class="old-desk-view form-view-container w-full h-full flex flex-col"
-		></div>
+			class="form-view-container w-full h-full flex flex-col"
+		/>
 		<div class="form-sidebar flex"></div>
 	</div>
 </template>

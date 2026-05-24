@@ -15,6 +15,7 @@ import Contacts from '~icons/lucide/user-check'
 import Leads from '~icons/lucide/users'
 import { Sidebar } from 'frappe-ui'
 import { Breadcrumbs } from 'frappe-ui'
+import OldDeskView from '@/components/OldDeskView.vue'
 import LucideHouse from '~icons/lucide/house'
 import LucideList from '~icons/lucide/list'
 import LucideView from '~icons/lucide/user-star'
@@ -102,7 +103,7 @@ onMounted(async () => {
 	}
 	let list_view = new frappe.views.ListView({
 		doctype: 'Item',
-		parent: container.value,
+		parent: container.value.el,
 	})
 })
 </script>
@@ -128,8 +129,8 @@ onMounted(async () => {
 				<Button variant="solid">{{ primary_action_label }}</Button>
 			</div>
 		</nav>
-		<div ref="list-view-container" class="old-desk-view list-view-container w-full h-full">
+		<OldDeskView ref="list-view-container" class="list-view-container w-full h-full">
 			<div class="page-form"></div>
-		</div>
+		</OldDeskView>
 	</div>
 </template>
