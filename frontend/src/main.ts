@@ -58,7 +58,8 @@ async function initFrappe() {
     if (!window.frappe) window.frappe = {};
     window.frappe = { ...window.frappe, ...values }
     await appendScripts(values.app_include_js)
-    appendStyles(values.app_include_css)
+    let cssFiles = [frappe.boot.assets_json['newdesk.bundle.css']]
+    appendStyles(cssFiles)
     if (window.system_timezone) setConfig('systemTimezone', window.system_timezone)
     window.frappe._router = router
     app.mount('#app')

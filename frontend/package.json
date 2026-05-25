@@ -5,7 +5,7 @@
   "version": "0.0.0",
   "boilerplate_script": "boilerplate.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview"
   },
