@@ -100,7 +100,7 @@ const options = [
 	},
 ]
 onMounted(async () => {
-	frappe.model.with_doctype('Item', function () {
+	frappe.model.with_doctype(doctype, function () {
 		frappe.ui.form.Form.prototype.add_custom_button = function (label, callback, grp) {
 			if (!grp) {
 				custom_buttons.value[label] = []
@@ -115,6 +115,14 @@ onMounted(async () => {
 			}
 			frappe.custom_buttons = custom_buttons.value
 		}
+		frappe.ui.form.Form.prototype.page_api = {
+			set_title: function (title) {
+				document.title = title
+			},
+			add_button: function () {
+				console.log('add_button', arguments)
+			},
+		}
 		// frappe.ui.form.ControlCheck = check
 		// ;
 		let check = registerCheck()
@@ -128,16 +136,15 @@ onMounted(async () => {
 				console.log(name, callback)
 			},
 		}
-		form = new frappe.ui.form.Form('Item', formcontainer.value.el, true)
+		form = new frappe.ui.form.Form(doctype, formcontainer.value.el, true)
 
 		// }
-		frappe.model.with_doc('Item', 'SKU010', (name, r) => {
+		frappe.model.with_doc(doctype, props.name, (name, r) => {
 			if (r && r['403']) return // not permitted
-			let doc = frappe.get_doc('Item', 'SKU010')
+			let doc = frappe.get_doc(doctype, props.name)
 			let indicator = frappe.get_indicator(doc)
-			debugger
-			form.refresh('SKU010')
-			if (indicator.length) {
+			form.refresh(props.name)
+			if (indicator && indicator.length) {
 				theme.value = indicator[1]
 				badgeContent.value = indicator[0]
 			}
@@ -161,16 +168,22 @@ function save() {
 import { Avatar } from 'frappe-ui'
 let theme = ref('grey')
 let badgeContent = ref('status')
+
+// route params: doctype (url slug) and name (document name)
+const props = defineProps(['doctype', 'name'])
+// the url carries the slug ("sales-order"); the form needs the real doctype
+const doctype =
+	frappe.router.routes?.[props.doctype]?.doctype || frappe.router.unslug(props.doctype)
 </script>
 
 <template>
 	<Sidebar :header="crmSidebar.header" :sections="crmSidebar.sections" />
 	<div class="flex-1 flex flex-col h-full overflow-auto">
 		<nav class="bg-surface-white border-b px-2 py-2.5 h-12 flex justify-between w-full">
-			<div class="flex align-items-center gap-2">
+			<div class="flex items-center gap-2">
 				<Breadcrumbs
 					:items="[
-						{ icon: LucideHouse, route: { name: 'Home' } },
+						{ icon: LucideHouse, route: { name: 'home' } },
 						{ label: 'Stock', route: '/stock' },
 						{
 							label: 'Item',

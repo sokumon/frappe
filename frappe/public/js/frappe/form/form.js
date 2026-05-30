@@ -100,6 +100,7 @@ frappe.ui.form.Form = class FrappeForm {
 			this.layout_main = this.page.main.get(0);
 		} else {
 			this.page = this.wrapper;
+			Object.assign(this.page, this.page_api);
 			this.layout_main = $(this.page).get(0);
 		}
 

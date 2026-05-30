@@ -20,6 +20,15 @@ import LucideHouse from '~icons/lucide/house'
 import LucideList from '~icons/lucide/list'
 import LucideView from '~icons/lucide/user-star'
 import { useTemplateRef, onMounted, onUnmounted, onSetup } from 'vue'
+
+// route params: doctype (url slug), view and rest (passed via the route or the
+// /:slug dispatcher)
+const props = defineProps(['doctype', 'view', 'rest'])
+console.log('List view props:', props)
+// the url carries the slug ("sales-order"); the list needs the real doctype
+const doctype =
+	frappe.router.routes?.[props.doctype]?.doctype || frappe.router.unslug(props.doctype)
+
 let primary_action_label = ref('')
 function toggleTheme() {
 	const currentTheme = document.documentElement.getAttribute('data-theme')
@@ -89,6 +98,14 @@ const crmSidebar = reactive({
 const container = useTemplateRef('list-view-container')
 onMounted(async () => {
 	frappe.realtime.init()
+	frappe.views.ListView.prototype.page_api = {
+		add_action_item: function () {
+			console.log('Adding action item')
+		},
+		add_menu_item: function () {
+			console.log('Adding menu item')
+		},
+	}
 	frappe.views.ListView.prototype.set_primary_action = function () {
 		if (this.can_create && !frappe.boot.read_only) {
 			const doctype_name = __(frappe.router.doctype_layout) || __(this.doctype)
@@ -101,8 +118,9 @@ onMounted(async () => {
 			// }
 		}
 	}
+	debugger
 	let list_view = new frappe.views.ListView({
-		doctype: 'Item',
+		doctype: doctype,
 		parent: container.value.el,
 	})
 })
@@ -114,7 +132,7 @@ onMounted(async () => {
 		<nav class="bg-surface-white border-b px-2 py-2.5 h-12 flex justify-between w-full">
 			<Breadcrumbs
 				:items="[
-					{ icon: LucideHouse, route: { name: 'Home' } },
+					{ icon: LucideHouse, route: { name: 'home' } },
 					{ label: 'Stock', route: '/stock' },
 					{
 						label: 'Item',

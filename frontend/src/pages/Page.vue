@@ -1,8 +1,11 @@
 <script setup lang="ts">
-import { useTemplateRef, onMounted, onBeforeUnmount, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useTemplateRef, onMounted, onBeforeUnmount, watch, computed } from 'vue'
 
-const route = useRoute()
+const props = defineProps<{ name?: string }>()
+
+// An empty name means "home" – resolve it to the configured home page,
+// mirroring legacy frappe.views.pageview.show("").
+const pageName = computed(() => props.name || frappe.boot?.home_page || '')
 const container = useTemplateRef<HTMLDivElement>('container')
 
 let loadedPage = ''
@@ -59,18 +62,16 @@ async function loadPage(name: string) {
 	triggerPageEvent('refresh')
 }
 
-onMounted(() => loadPage(route.params.doctype as string))
+onMounted(() => loadPage(pageName.value))
 
-watch(
-	() => route.params.doctype,
-	(name) => {
-		if (name && name !== loadedPage) loadPage(name as string)
-	}
-)
+watch(pageName, (name) => {
+	if (name && name !== loadedPage) loadPage(name)
+})
 
 onBeforeUnmount(teardown)
 </script>
 
 <template>
+	I am {{ pageName }}
 	<div ref="container" class="w-full h-full overflow-auto" />
 </template>

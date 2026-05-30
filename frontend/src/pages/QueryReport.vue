@@ -1,4 +1,4 @@
-<template>Report view is coming soon</template>
+<template>I am Report</template>
 
 <script setup lang="ts">
 console.log('hello')
