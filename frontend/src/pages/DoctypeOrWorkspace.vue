@@ -19,7 +19,6 @@ const isWorkspace = computed(() => !!frappe.workspaces?.[slug.value])
 const isPage = computed(() => isAllowedPage(slug.value))
 // real doctype behind the slug (meta already loaded by resolveSlug)
 const doctype = computed(() => frappe.router.routes?.[slug.value]?.doctype)
-debugger
 const isSingle = computed(() => !!doctype.value && frappe.model?.is_single?.(doctype.value))
 </script>
 

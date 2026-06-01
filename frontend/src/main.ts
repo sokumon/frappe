@@ -6,6 +6,7 @@ import dialog from "@/composables/dialog.js"
 import { Button, setConfig, frappeRequest, resourcesPlugin } from 'frappe-ui'
 import { spritePlugin } from "frappe-ui/icons"
 import { FrappeApp } from "@/frappeApp"
+import { installPageBridge } from "@/page/createPage"
 async function appendScripts(scripts) {
     if (!scripts?.length) return
 
@@ -29,7 +30,10 @@ async function appendScripts(scripts) {
                 frappe.sys_defaults = frappe.boot.sysdefaults
                 frappe.breadcrumbs = {
                     preferred: {},
-                    module_map: {}
+                    module_map: {},
+                    add: function(){
+                        console.log("add breadcrumb", arguments)
+                    }
                 }
                 counter++;
                 if(counter == filteredScripts.length && !isBootstraped){
@@ -89,6 +93,11 @@ function bootstrap() {
     // Recreate frappe.Application.load_bootinfo (globals, model sync, page
     // cache, moment, setup_complete) before any component or route guard runs.
     new FrappeApp()
+
+    // Re-point frappe.ui.make_app_page / frappe.ui.Page at the Vue page bridge
+    // so legacy views (form.js, factory.js, treeview.js, ...) render their
+    // chrome through PageShell. Runs after the desk bundles defined frappe.ui.
+    installPageBridge()
 
     // Build the router's slug->doctype map + workspaces (legacy
     // frappe.router.setup, called from load_bootinfo). Must run before mount so

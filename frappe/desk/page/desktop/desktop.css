@@ -111,7 +111,6 @@
     -ms-user-select: none;
 }
 .icon-container{
-    padding: 10px;
     border-radius: 16px;
     overflow: hidden;
     display: flex;

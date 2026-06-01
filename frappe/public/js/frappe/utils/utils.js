@@ -1594,6 +1594,9 @@ Object.assign(frappe.utils, {
 		// (item.doctype && frappe.model.can_read(item.doctype))) {
 		//     item.shown = true;
 		// }
+		if (frappe.vue_shell) {
+			return `/newdesk/${route}`;
+		}
 		return `/desk/${route}`;
 	},
 
