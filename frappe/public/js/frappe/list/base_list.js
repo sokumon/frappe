@@ -169,17 +169,17 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	setup_page() {
-		if (frappe.vue_shell) {
-			this.page = this.parent;
-			Object.assign(this.page, this.page_api);
-			this.$page = $(this.page);
-			this.page.main = this.$page;
-			this.page.page_form = this.$page.find(".page-form");
-		} else {
-			this.page = this.parent.page;
-			this.$page = $(this.parent);
-		}
+		// if (frappe.vue_shell) {
+		// 	this.page = this.parent;
+		// 	Object.assign(this.page, this.page_api);
+		// 	this.$page = $(this.page);
+		// 	this.page.main = this.$page;
+		// 	this.page.page_form = this.$page.find(".page-form");
+		// } else {
 
+		// }
+		this.page = this.parent.page;
+		this.$page = $(this.parent);
 		this.page.main.addClass("layout-main-list");
 		this.page.page_form.removeClass("row").addClass("flex");
 		this.hide_page_form && this.page.page_form.hide();

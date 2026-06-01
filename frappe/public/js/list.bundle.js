@@ -8,6 +8,8 @@ import "./frappe/ui/messages.js";
 import "./frappe/ui/desktop_icon.html";
 import "./frappe/ui/menu.js";
 import "./frappe/views/pageview.js";
+import "./frappe/views/workspace/workspace.js";
+import "./frappe/views/workspace/blocks/index.js";
 import "./frappe/ui/notifications/notifications.js";
 import "./frappe/views/factory.js";
 import "./frappe/model/model.js";
@@ -15,6 +17,7 @@ import "./frappe/db.js";
 import "./frappe/model/meta.js";
 import "./frappe/model/sync.js";
 import "./frappe/model/create_new.js";
+
 import "./frappe/model/perm.js";
 import "./frappe/model/workflow.js";
 import "./frappe/model/user_settings.js";

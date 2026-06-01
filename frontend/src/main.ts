@@ -15,7 +15,8 @@ async function appendScripts(scripts) {
         script.includes("list") || 
         script.includes("vue_shell") || 
         script.includes("controls") ||
-        script.includes("erpnext")
+        script.includes("erpnext") || 
+        script.includes("report")
     )
     let counter = 0;
     for (const script of filteredScripts) {

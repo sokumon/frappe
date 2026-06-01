@@ -696,6 +696,17 @@ export function installPageBridge() {
 			sidebar: !opts.single_column && !opts.hide_sidebar,
 			sidebarPosition: opts.sidebar_position,
 		})
+
+		// Legacy parity: `this.wrapper = $(this.parent)`. PageShell-hosted pages
+		// get their refs from onMounted, but a plain `parent` (the detached
+		// add_page fallback / any non-Vue host) has none — seed wrapper + main
+		// from it so `page.wrapper` is a real jQuery element, not an empty set.
+		if (parentEl instanceof HTMLElement && !page.state.refs.wrapper) {
+			page.state.refs.wrapper = parentEl
+			page.state.refs.main =
+				parentEl.querySelector<HTMLElement>('.layout-main-section') ?? parentEl
+		}
+
 		if (parentEl) parentEl.page = page
 		else if (parent) parent.page = page
 		return page
@@ -706,4 +717,49 @@ export function installPageBridge() {
 	f.ui.Page = function (this: any, opts: PageOptions = {}) {
 		return f.ui.make_app_page(opts)
 	} as any
+
+	installContainer(f)
+}
+
+// Legacy `frappe.container` shim (replaces views/container.js). Standard pages
+// (`frappe.standard_pages[name]`) call `add_page(name)` to get their wrapper,
+// render into `wrapper.find(".layout-main-section")`, bind a "show" handler, and
+// rely on `change_to(name)` to fire it. In the vue shell the wrapper is the
+// PageShell element the view pre-registers in `frappe.pages`; `add_page` returns
+// that (falling back to a detached div for any caller without a Vue host).
+function installContainer(f: any) {
+	f.pages = f.pages || {}
+	f.container = f.container || {}
+	if (f.container.page === undefined) f.container.page = null
+
+	f.container.add_page = (label: string) => {
+		let page = f.pages[label]
+		if (!page) {
+			// legacy fallback: detached container with a main section so
+			// `wrapper.find(".layout-main-section")` still resolves.
+			page = document.createElement('div')
+			page.className = 'content page-container'
+			page.id = 'page-' + label
+			page.setAttribute('data-page-route', label)
+			const main = document.createElement('div')
+			main.className = 'layout-main-section'
+			page.appendChild(main)
+			f.pages[label] = page
+		}
+		page.label = label
+		return page
+	}
+
+	f.container.change_to = (label: any) => {
+		const jq = (window as any).$ || (window as any).jQuery
+		const page = label?.tagName ? label : f.pages[label]
+		if (!page) return
+		// hide the previously shown page, then show + trigger the new one
+		if (f.container.page && f.container.page !== page) {
+			jq?.(f.container.page).trigger('hide')
+		}
+		f.container.page = page
+		jq?.(page).trigger('show')
+		return page
+	}
 }
