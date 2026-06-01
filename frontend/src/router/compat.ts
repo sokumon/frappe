@@ -129,6 +129,10 @@ export function toStandardRoute(to: RouteLocationNormalized): any[] {
 
 		case "form": {
 			const name = Array.isArray(p.name) ? p.name.join("/") : p.name
+			// page with trailing route args (e.g. /permission-manager/doctype)
+			if (!getDoctypeRoute(p.doctype) && isAllowedPage(p.doctype)) {
+				return name ? [p.doctype, ...String(name).split("/")] : [p.doctype]
+			}
 			return ["Form", slugToDoctype(p.doctype), name]
 		}
 

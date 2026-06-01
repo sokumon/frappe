@@ -43,13 +43,14 @@ const routes: RouteRecordRaw[] = [
 		component: () => import("@/pages/ListView.vue"),
 	},
 
-	// form. `:name(.+)` allows document names that contain "/"
-	// route params (doctype, name) are passed to Form.vue as props.
+	// `:name(.+)` allows document names (and page args) that contain "/".
+	// FormOrPage renders a Form when :doctype is a real doctype, otherwise a
+	// Frappe Page whose trailing segments are the page's own route args
+	// (e.g. /permission-manager/doctype).
 	{
 		path: "/:doctype/:name(.+)",
 		name: "form",
-		component: () => import("@/pages/Form.vue"),
-		props: true,
+		component: () => import("@/pages/FormOrPage.vue"),
 	},
 
 	// bare single segment: doctype list OR workspace – disambiguated in the
