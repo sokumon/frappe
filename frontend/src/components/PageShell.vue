@@ -4,12 +4,15 @@
 // exposes the `#page-form` / `#filters` mount nodes that `add_field` writes into.
 //
 // The sidebar is frappe-ui's `Sidebar`, rendered here and gated by `sidebar`.
-// Callers supply its content via the `sidebarHeader` / `sidebarSections` props.
+// Its content defaults to the workspace sidebar resolved for the current route
+// (useWorkspaceSidebar / frappe.app.sidebar); the `sidebarHeader` /
+// `sidebarSections` props override that when a caller supplies them.
 import { computed, onMounted, useTemplateRef } from 'vue'
 import { Sidebar } from 'frappe-ui'
 import Navbar from './Navbar.vue'
 import { createPage } from '@/page/createPage'
 import { providePage } from '@/page/usePage'
+import { useWorkspaceSidebar } from '@/composables/getSidebar'
 
 // Only the render-relevant subset of PageOptions; the legacy passthrough fields
 // live on PageOptions for the bridge, not on the component's props.
@@ -31,6 +34,15 @@ const props = withDefaults(
 // Each PageShell owns one page; descendants drive it via usePage().
 const page = createPage(props)
 providePage(page)
+
+// The shared workspace sidebar, resolved from the current route (and published
+// as frappe.app.sidebar). Explicit `sidebarHeader`/`sidebarSections` props win;
+// otherwise we render whatever the route resolved to.
+const { sidebar: workspaceSidebar } = useWorkspaceSidebar()
+const resolvedHeader = computed(() => props.sidebarHeader ?? workspaceSidebar.header ?? undefined)
+const resolvedSections = computed(() =>
+	props.sidebarSections.length ? props.sidebarSections : workspaceSidebar.sections
+)
 
 const wrapper = useTemplateRef<HTMLDivElement>('wrapper')
 const pageWrapper = useTemplateRef<HTMLDivElement>('pageWrapper')
@@ -74,8 +86,8 @@ defineExpose({ page })
 		<Sidebar
 			v-if="sidebar"
 			ref="sidebarRef"
-			:header="sidebarHeader"
-			:sections="sidebarSections"
+			:header="resolvedHeader"
+			:sections="resolvedSections"
 			class="shrink-0"
 			:class="sidebarOrder"
 		/>

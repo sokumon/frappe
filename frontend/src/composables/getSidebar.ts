@@ -1,133 +1,422 @@
-// useWorkspaceSidebar.ts
-import { reactive } from 'vue'
+// getSidebar.ts
+//
+// Vue port of `frappe/public/js/frappe/ui/sidebar/sidebar.js`. The legacy class
+// builds the workspace sidebar as jQuery DOM; here we only keep the data layer:
+//   - turn one `frappe.boot.workspace_sidebar_item[*]` entry into a frappe-ui
+//     `Sidebar` config (header + sections), and
+//   - resolve which sidebar that should be for the current route (the port of
+//     `set_workspace_sidebar`, the function highlighted in the legacy file).
+//
+// The result is a single reactive `sidebar` state that <PageShell> renders and
+// that is also published as `frappe.app.sidebar`, so legacy/desk code that pokes
+// at `frappe.app.sidebar.setup(...)` keeps working against the Vue chrome.
+import { h, markRaw, reactive, type Component } from 'vue'
+import { Icon } from 'frappe-ui/icons'
 
-interface ERPNextItem {
+// ---------------------------------------------------------------------------
+// boot shapes (subset of frappe.desk.desktop.get_sidebar_items)
+// ---------------------------------------------------------------------------
+
+interface SidebarItem {
   label: string
   link_to: string | null
   link_type: string
-  type: 'Link' | 'Section Break'
+  type: 'Link' | 'Section Break' | string
   icon: string | null
   child: number
   collapsible: number
   indent: number
   keep_closed: number
+  url?: string | null
 }
 
-interface ERPNextSidebarData {
+interface SidebarData {
   label: string
-  items: ERPNextItem[]
+  items: SidebarItem[]
   header_icon?: string
   module?: string
   app?: string
 }
 
-interface SidebarItem {
+type AllSidebarItems = Record<string, SidebarData>
+
+// ---------------------------------------------------------------------------
+// frappe-ui Sidebar shapes (see frappe-ui/src/components/Sidebar/types.ts)
+// ---------------------------------------------------------------------------
+
+interface SidebarSectionItem {
   label: string
-  icon?: unknown
+  icon?: Component
   to?: string
+  isActive?: boolean
 }
 
 interface SidebarSection {
   label: string
-  items: SidebarItem[]
+  items: SidebarSectionItem[]
+  collapsible?: boolean
+}
+
+interface SidebarHeaderConfig {
+  title: string
+  subtitle: string
+  logo: unknown
+  menuItems: unknown[]
 }
 
 interface SidebarConfig {
-  header: {
-    title: string
-    subtitle: string
-    logo: unknown
-    menuItems: unknown[]
-  }
+  header: SidebarHeaderConfig
   sections: SidebarSection[]
 }
 
-type AllSidebarItems = Record<string, ERPNextSidebarData>
+// ---------------------------------------------------------------------------
+// boot accessors (kept as functions so they re-read once boot is populated)
+// ---------------------------------------------------------------------------
 
-function toPascalCase(str: string): string {
-  return str
-    .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('')
+function allSidebarItems(): AllSidebarItems {
+  return frappe?.boot?.workspace_sidebar_item ?? {}
 }
 
-function resolveIcon(iconStr: string | null): unknown {
-  if (!iconStr) return LucideIcons['File']
-  const pascalIcon = toPascalCase(iconStr)
-  return LucideIcons[pascalIcon as keyof typeof LucideIcons] ?? LucideIcons['File']
+// `allSidebarItems()` is keyed by `sidebar_title.lower()`; names we resolve are
+// the proper-case titles, so every lookup goes through this.
+function sidebarData(name: string): SidebarData | undefined {
+  return allSidebarItems()[name?.toLowerCase()]
 }
 
-export function useWorkspaceSidebar(
-  allSidebarItems: AllSidebarItems,
-  menuItems: unknown[] = [],
-) {
+// ---------------------------------------------------------------------------
+// item -> frappe-ui section transform
+// ---------------------------------------------------------------------------
 
-  function buildRoute(item: ERPNextItem): string {
-    if (!item.link_to) return ''
-    switch (item.link_type) {
-      case 'Workspace': return `/${item.link_to.toLowerCase().replace(/ /g, '-')}`
-      case 'DocType':   return `/list/${item.link_to.replace(/ /g, '-')}`
-      case 'Dashboard': return `/dashboard/${item.link_to.toLowerCase().replace(/ /g, '-')}`
-      case 'Report':    return `/query-report/${item.link_to.replace(/ /g, '-')}`
-      default:          return `/${item.link_to.replace(/ /g, '-')}`
+// `to` must be a real app route (vue-router), so we slug names the same way the
+// router does (frappe.router.slug) instead of emitting legacy desk paths.
+function slug(name: string): string {
+  return frappe?.router?.slug ? frappe.router.slug(name) : name.toLowerCase().replace(/ /g, '-')
+}
+
+function buildRoute(item: SidebarItem): string {
+  if (!item.link_to) return item.url || ''
+  switch (item.link_type) {
+    case 'Report':
+      return `/query-report/${encodeURIComponent(item.link_to)}`
+    case 'Dashboard':
+      return `/dashboard/${slug(item.link_to)}`
+    // Workspace / DocType / Page all resolve through the `/:slug` dispatcher.
+    default:
+      return `/${slug(item.link_to)}`
+  }
+}
+
+// Sidebar icons are stored as Lucide icon names (kebab-case). Render them with
+// frappe-ui's `Icon`, which `<use>`s the Lucide sprite injected by spritePlugin
+// (wired in main.ts). Returned as a tiny functional component so frappe-ui's
+// `<component :is="icon">` can mount it and forward the sizing `class`; `markRaw`
+// keeps Vue from making the component reactive.
+const DEFAULT_ICON = 'file'
+
+// Ids actually present in the injected sprite, so an unknown name falls back to a
+// visible default instead of rendering a blank `<use href="#missing">`. Resolved
+// lazily (the sprite is in the DOM by the time the sidebar first builds).
+let spriteIds: Set<string> | null = null
+function lucideHas(name: string): boolean {
+  if (!spriteIds) {
+    const sprite = document.getElementById('lucide-sprite')
+    if (!sprite) return true // can't verify yet; assume valid
+    spriteIds = new Set(Array.from(sprite.querySelectorAll('symbol[id]')).map((s) => s.id))
+  }
+  return spriteIds.has(name)
+}
+
+function toLucideName(iconStr: string | null): string {
+  const name = (iconStr || '').trim().toLowerCase().replace(/[\s_]+/g, '-')
+  return name && lucideHas(name) ? name : DEFAULT_ICON
+}
+
+function resolveIcon(iconStr: string | null): Component {
+  const name = toLucideName(iconStr)
+  debugger
+  return markRaw(
+    (_props: Record<string, unknown>, ctx: { attrs: Record<string, unknown> }) =>
+      h(Icon, { name, ...ctx.attrs })
+  ) as unknown as Component
+}
+
+function transformItems(rawItems: SidebarItem[]): SidebarSection[] {
+  const sections: SidebarSection[] = []
+  // Items before the first Section Break live in an unlabelled lead section.
+  let current: SidebarSection = { label: '', items: [] }
+
+  for (const item of rawItems) {
+    if (item.type === 'Section Break') {
+      if (current.items.length > 0) sections.push(current)
+      current = { label: item.label ?? '', items: [], collapsible: !!item.collapsible }
+      continue
+    }
+
+    if (item.link_to || item.url) {
+      current.items.push({
+        label: item.label,
+        icon: resolveIcon(item.icon),
+        to: buildRoute(item),
+      })
     }
   }
 
-  function transformItems(rawItems: ERPNextItem[]): SidebarSection[] {
-    const sections: SidebarSection[] = []
-    let currentSection: SidebarSection = { label: '', items: [] }
+  if (current.items.length > 0) sections.push(current)
+  return sections
+}
 
-    for (const item of rawItems) {
-      if (item.type === 'Section Break') {
-        if (currentSection.items.length > 0) sections.push(currentSection)
-        currentSection = { label: item.label ?? '', items: [] }
-        continue
-      }
+// ---------------------------------------------------------------------------
+// header
+// ---------------------------------------------------------------------------
 
-      if (item.type === 'Link' && item.link_to) {
-        currentSection.items.push({
-          label: item.label,
-          icon: resolveIcon(item.icon),
-          to: buildRoute(item),
-        })
-      }
+function appTitle(appName?: string): string {
+  if (!appName) return ''
+  const app = (frappe?.boot?.app_data ?? []).find((a: any) => a.app_name === appName)
+  return app?.app_title || appName
+}
+
+// Header dropdown items (theme/logout/…). Empty by default; a host can push to
+// it before the first sidebar is built.
+const headerMenuItems: unknown[] = []
+
+function buildHeader(data: SidebarData): SidebarHeaderConfig {
+  return {
+    title: data.label,
+    subtitle: appTitle(data.app),
+    // get_desktop_icon returns a URL string or `false`; SidebarHeader treats a
+    // string as an <img> src and any falsy value as the title-initial fallback.
+    logo:
+      typeof frappe !== 'undefined'
+        ? frappe.utils.get_desktop_icon(data.label, 'Solid')
+        : false,
+    menuItems: headerMenuItems,
+  }
+}
+
+// Build the frappe-ui config for a named sidebar (no selection / side effects).
+function buildSidebarConfig(name: string): SidebarConfig | null {
+  const data = sidebarData(name)
+  if (!data) return null
+  return { header: buildHeader(data), sections: transformItems(data.items) }
+}
+
+// ---------------------------------------------------------------------------
+// route -> sidebar name  (port of legacy set_workspace_sidebar + helpers)
+// ---------------------------------------------------------------------------
+
+// Sidebars whose items link to `linkTo` (legacy get_workspace_sidebars).
+function getWorkspaceSidebars(linkTo: string): string[] {
+  const sidebars: string[] = []
+  for (const [name, data] of Object.entries(allSidebarItems())) {
+    if (data.items.some((item) => item.link_to === linkTo)) {
+      sidebars.push(data.label || name)
     }
+  }
+  return sidebars
+}
 
-    if (currentSection.items.length > 0) sections.push(currentSection)
+// First top-level workspace belonging to `module` (legacy get_workspace_for_module).
+function getWorkspaceForModule(module?: string): string {
+  if (!module) return ''
+  for (const page of frappe?.boot?.workspaces?.pages ?? []) {
+    if (page.module === module && !page.parent_page) return page.name
+  }
+  return ''
+}
 
-    return sections
+// Keep only sidebars that belong to `app` (legacy filter_sidebars_from_app).
+function filterSidebarsFromApp(sidebars: string[], app: string): string[] {
+  const out: string[] = []
+  for (const name of sidebars) {
+    if (!out.includes(name) && sidebarData(name)?.app === app) out.push(name)
+  }
+  return out
+}
+
+// module -> [sidebar labels] (legacy build_sidebar_module_map).
+function sidebarModuleMap(): Record<string, string[]> {
+  const map: Record<string, string[]> = {}
+  for (const data of Object.values(allSidebarItems())) {
+    if (data.module && !data.label.includes('My Workspaces')) {
+      ;(map[data.module] ||= []).push(data.label)
+    }
+  }
+  return map
+}
+
+// Fallback when the route's entity matched no sidebar by link (legacy
+// show_sidebar_for_module).
+function resolveModuleSidebar(module: string): string | null {
+  if (sidebar.name && sidebar.preferredSidebars.includes(sidebar.name)) return null
+  if (sidebarData(module)) return module
+  const workspaceName = getWorkspaceForModule(module)
+  if (workspaceName && sidebarData(workspaceName)) return workspaceName
+  const candidates = sidebarModuleMap()[module]?.slice().sort((a, b) => a.localeCompare(b))
+  return candidates?.length ? candidates[0] : null
+}
+
+function readSidebarItemMap(): Record<string, string[]> | null {
+  try {
+    return JSON.parse(localStorage.getItem('sidebar_item_map') || 'null')
+  } catch {
+    return null
+  }
+}
+
+// The function highlighted in sidebar.js: given the current standard route, work
+// out which workspace sidebar should be shown. Returns the sidebar name to load,
+// or `null` to keep the current one (it already serves this route).
+function resolveSidebarName(route: string[], module?: string): string | null {
+  let entityName: string | undefined
+
+  switch (route.length) {
+    case 1:
+      entityName = route[0]
+      break
+    case 2:
+      entityName = route[1]
+      // a route that points straight at a workspace (e.g. ["Workspaces", "Stock"])
+      if (sidebarData(entityName)) return entityName
+      break
+    case 3:
+      entityName = route[1]
+      if (route[0] === 'Workspaces' && route[1] === 'private') entityName = route[2]
+      break
+    default:
+      entityName = route[1]
   }
 
-  function buildSidebar(sidebarData: ERPNextSidebarData): SidebarConfig {
-    return reactive<SidebarConfig>({
-      header: {
-        title: sidebarData.label,
-        subtitle: sidebarData.app ?? '',
-        logo: typeof frappe !== 'undefined'
-          ? frappe.utils.get_desktop_icon(sidebarData.label, 'Solid')
-          : null,
-        menuItems,
-      },
-      sections: transformItems(sidebarData.items),
-    })
-  }
+  let sidebars = getWorkspaceSidebars(entityName ?? '')
+  sidebar.preferredSidebars = sidebars
 
-  function getWorkspaceSidebars(linkTo: string): string[] {
-    return Object.entries(allSidebarItems).flatMap(([name, sidebar]) =>
-      sidebar.items
-        .filter((item) => item.link_to === linkTo)
-        .map(() => sidebar.label || name)
+  // already showing a sidebar that serves this entity -> just re-highlight
+  if (sidebar.name && sidebars.includes(sidebar.name)) return null
+
+  // user's last choice for this entity (persisted by the legacy desk)
+  const itemMap = readSidebarItemMap()
+  if (entityName && itemMap?.[entityName]) return itemMap[entityName][0]
+
+  if (module) {
+    sidebars = filterSidebarsFromApp(
+      sidebars,
+      frappe.boot.module_app[module.toLowerCase().replace(/[ -]/g, '_')]
     )
   }
 
-  function getSidebarByName(name: string): SidebarConfig | null {
-    const sidebarData = allSidebarItems[name]
-    return sidebarData ? buildSidebar(sidebarData) : null
+  if (sidebars.length === 1) return sidebars[0]
+  if (sidebars.length > 1) {
+    const workspaceSidebar = getWorkspaceForModule(module)
+    return sidebars.includes(workspaceSidebar) ? workspaceSidebar : module ?? null
   }
+  if (module) return resolveModuleSidebar(module)
+  return null
+}
 
-  return {
-    buildSidebar,
-    getWorkspaceSidebars,
-    getSidebarByName,
+// ---------------------------------------------------------------------------
+// the shared reactive sidebar state (also published as frappe.app.sidebar)
+// ---------------------------------------------------------------------------
+
+interface SidebarState {
+  name: string
+  header: SidebarHeaderConfig | null
+  sections: SidebarSection[]
+  preferredSidebars: string[]
+  /** Load a named workspace sidebar (legacy frappe.app.sidebar.setup). */
+  setup(name: string): void
+  /** Re-resolve for the current route (legacy set_workspace_sidebar). */
+  set_workspace_sidebar(router?: { meta?: { module?: string } }): void
+  /** Build the frappe-ui config for an arbitrary sidebar without selecting it. */
+  getSidebarByName(name: string): SidebarConfig | null
+}
+
+const sidebar = reactive<SidebarState>({
+  name: '',
+  header: null,
+  sections: [],
+  preferredSidebars: [],
+
+  setup(name: string): void {
+    setSidebar(name)
+  },
+
+  set_workspace_sidebar(router): void {
+    resolveForCurrentRoute(router?.meta?.module)
+  },
+
+  getSidebarByName(name: string): SidebarConfig | null {
+    return buildSidebarConfig(name)
+  },
+})
+
+// Build + select a sidebar by name (legacy setup()).
+function setSidebar(name: string) {
+  const config = buildSidebarConfig(name)
+  if (!config) return
+  sidebar.name = sidebarData(name)?.label ?? name
+  sidebar.header = config.header
+  sidebar.sections = config.sections
+  markActive()
+}
+
+// Highlight the item matching the current path (legacy set_active_workspace_item).
+function currentPath(): string {
+  const routed = (window as any).frappe?._router?.currentRoute?.value?.path
+  return routed || window.location.pathname
+}
+
+function markActive() {
+  const path = currentPath()
+  for (const section of sidebar.sections) {
+    for (const item of section.items) {
+      const to = item.to
+      item.isActive = !!to && (path === to || path.startsWith(to + '/'))
+    }
   }
 }
+
+function resolveForCurrentRoute(module?: string) {
+  const route = (frappe?.get_route?.() ?? []) as string[]
+  const name = resolveSidebarName(route, module)
+  if (name) {
+    setSidebar(name)
+  } else {
+    // same sidebar still applies; just move the active highlight
+    markActive()
+  }
+}
+
+// ---------------------------------------------------------------------------
+// init: wire route changes + publish frappe.app.sidebar (runs once)
+// ---------------------------------------------------------------------------
+
+let initialised = false
+
+function init() {
+  if (initialised || typeof frappe === 'undefined') return
+  initialised = true
+
+  frappe.app = frappe.app || {}
+  sidebar.show_sidebar_for_module = function () {
+      console.log('show_sidebar_for_module is deprecated; sidebars are now resolved automatically based on the route. Please migrate any calls to this function to instead ensure the relevant sidebar config is present in boot and that sidebar items link to the correct entities.')
+  }
+  frappe.app.sidebar = sidebar
+
+  // re-resolve on every navigation (compat layer fires this after each route)
+  frappe.router?.on?.('change', (router: { meta?: { module?: string } }) =>
+    resolveForCurrentRoute(router?.meta?.module)
+  )
+
+  // resolve for the route we booted on
+  resolveForCurrentRoute()
+}
+
+// ---------------------------------------------------------------------------
+// public composable
+// ---------------------------------------------------------------------------
+
+export function useWorkspaceSidebar() {
+  init()
+  return { sidebar }
+}
+
+export type { SidebarConfig, SidebarSection, SidebarHeaderConfig }
