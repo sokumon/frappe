@@ -114,6 +114,7 @@ export interface PageState {
 		wrapper: HTMLElement | null
 		pageWrapper: HTMLElement | null
 		pageHead: HTMLElement | null
+		pageBody: HTMLElement | null
 		main: HTMLElement | null
 		sidebar: HTMLElement | null
 		footer: HTMLElement | null

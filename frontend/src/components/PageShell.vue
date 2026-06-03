@@ -13,6 +13,7 @@ import Navbar from './Navbar.vue'
 import { createPage } from '@/page/createPage'
 import { providePage } from '@/page/usePage'
 import { useWorkspaceSidebar } from '@/composables/getSidebar'
+import OldDeskView from './OldDeskView.vue'
 
 // Only the render-relevant subset of PageOptions; the legacy passthrough fields
 // live on PageOptions for the bridge, not on the component's props.
@@ -46,6 +47,7 @@ const resolvedSections = computed(() =>
 
 const wrapper = useTemplateRef<HTMLDivElement>('wrapper')
 const pageWrapper = useTemplateRef<HTMLDivElement>('pageWrapper')
+const pageBody = useTemplateRef<HTMLDivElement>('pageBody')
 const main = useTemplateRef<HTMLElement>('main')
 const footer = useTemplateRef<HTMLDivElement>('footer')
 const pageForm = useTemplateRef<HTMLDivElement>('pageForm')
@@ -58,6 +60,7 @@ onMounted(() => {
 	refs.wrapper = wrapper.value
 	refs.pageWrapper = pageWrapper.value
 	refs.pageHead = navbar.value?.$el ?? null
+	refs.pageBody = pageBody.value
 	refs.main = main.value
 	refs.sidebar = sidebarRef.value?.$el ?? null
 	refs.footer = footer.value
@@ -67,8 +70,9 @@ onMounted(() => {
 	// Stamp the real page onto the layout nodes a page script might pass back as
 	// `parent` (it receives page.main in on_page_load). make_app_page resolves
 	// `parent.page` from these, so it reuses this shell page instead of spawning
-	// a detached one whose refs are null.
-	if (refs.wrapper) (refs.wrapper as any).page = page
+	// a detached one whose refs are null. page-body is the node that carries the
+	// page identity (legacy add_page stamps id/data-page-route there).
+	if (refs.pageBody) (refs.pageBody as any).page = page
 	if (refs.main) (refs.main as any).page = page
 })
 
@@ -95,7 +99,7 @@ defineExpose({ page })
 		<div
 			id="page-wrapper"
 			ref="pageWrapper"
-			class="flex flex-1 flex-col h-full overflow-hidden"
+			class="flex flex-1 flex-col h-full overflow-hidden page-head"
 		>
 			<Navbar ref="navbar" :state="page.state">
 				<template #navbar>
@@ -103,16 +107,28 @@ defineExpose({ page })
 				</template>
 			</Navbar>
 
-			<main
-				ref="main"
-				class="layout-main layout-main-section flex-1 overflow-auto old-desk-view"
-			>
-				<div id="page-form" class="page-form row" ref="pageForm" />
-				<div id="filters" class="filters" ref="filters" />
-				<slot />
-			</main>
-
-			<footer ref="footer" class="layout-footer" />
+			<!-- page-body (page.html): page-wrapper > page-content holds the main
+				 section; legacy code queries .page-content / .layout-main. -->
+			<OldDeskView>
+				<div ref="pageBody" class="page-body flex flex-1 flex-col overflow-hidden">
+					<div class="page-toolbar hide" />
+					<div class="page-wrapper flex flex-1 flex-col overflow-hidden">
+						<div class="page-content flex flex-1 flex-col overflow-hidden">
+							<div class="workflow-button-area btn-group pull-right hide" />
+							<main ref="main" class="layout-main flex-1 overflow-auto">
+								<div class="layout-main-section-wrapper">
+									<div class="layout-main-section">
+										<div id="page-form" class="page-form row" ref="pageForm" />
+										<div id="filters" class="filters" ref="filters" />
+										<slot />
+									</div>
+								</div>
+							</main>
+							<footer ref="footer" class="layout-footer" />
+						</div>
+					</div>
+				</div>
+			</OldDeskView>
 		</div>
 	</div>
 </template>

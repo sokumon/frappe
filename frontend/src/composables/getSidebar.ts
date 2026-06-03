@@ -133,7 +133,6 @@ function toLucideName(iconStr: string | null): string {
 
 function resolveIcon(iconStr: string | null): Component {
   const name = toLucideName(iconStr)
-  debugger
   return markRaw(
     (_props: Record<string, unknown>, ctx: { attrs: Record<string, unknown> }) =>
       h(Icon, { name, ...ctx.attrs })

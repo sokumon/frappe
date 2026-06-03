@@ -221,6 +221,7 @@ export function createPage(opts: PageOptions = {}): Page {
 			wrapper: null,
 			pageWrapper: null,
 			pageHead: null,
+			pageBody: null,
 			main: null,
 			sidebar: null,
 			footer: null,
@@ -249,11 +250,20 @@ export function createPage(opts: PageOptions = {}): Page {
 		get page_head() {
 			return $wrap(state.refs.pageHead, page)
 		},
+		// The .page-body element (page.html) — the node that carries the page
+		// identity (id / data-page-route) and the show/hide events.
+		get page_body() {
+			return $wrap(state.refs.pageBody, page)
+		},
+		// page.js: this.body = this.main = this.wrapper.find(".layout-main-section")
+		// Resolve the section from the wrapper so main/body always point at the
+		// real .layout-main-section, falling back to the tracked ref.
 		get main() {
-			return $wrap(state.refs.main, page)
+			const section = state.refs.wrapper?.querySelector<HTMLElement>('.layout-main-section')
+			return $wrap(section ?? state.refs.main, page)
 		},
 		get body() {
-			return $wrap(state.refs.main, page)
+			return this.main
 		},
 		get container() {
 			return $wrap(state.refs.wrapper, page)
@@ -703,6 +713,7 @@ export function installPageBridge() {
 		// from it so `page.wrapper` is a real jQuery element, not an empty set.
 		if (parentEl instanceof HTMLElement && !page.state.refs.wrapper) {
 			page.state.refs.wrapper = parentEl
+			page.state.refs.pageBody = parentEl
 			page.state.refs.main =
 				parentEl.querySelector<HTMLElement>('.layout-main-section') ?? parentEl
 		}
@@ -733,20 +744,26 @@ function installContainer(f: any) {
 	if (f.container.page === undefined) f.container.page = null
 
 	f.container.add_page = (label: string) => {
+		// A view (e.g. Workspace.vue) may have pre-registered its PageShell
+		// wrapper in frappe.pages[label]; reuse that. Otherwise build the legacy
+		// detached container with a main section so `wrapper.find(".layout-
+		// main-section")` still resolves.
 		let page = f.pages[label]
 		if (!page) {
-			// legacy fallback: detached container with a main section so
-			// `wrapper.find(".layout-main-section")` still resolves.
 			page = document.createElement('div')
 			page.className = 'content page-container'
-			page.id = 'page-' + label
-			page.setAttribute('data-page-route', label)
 			const main = document.createElement('div')
 			main.className = 'layout-main-section'
 			page.appendChild(main)
 			f.pages[label] = page
 		}
+		// legacy add_page stamps these on every wrapper it returns — whether the
+		// fresh div above or the pre-registered PageShell wrapper (workspaces).
+		debugger
+		page.id = page.id || 'page-' + label
+		page.setAttribute?.('data-page-route', label)
 		page.label = label
+		page.page_name = page.page_name || label
 		return page
 	}
 
