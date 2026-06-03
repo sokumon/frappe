@@ -230,6 +230,11 @@ export function createPage(opts: PageOptions = {}): Page {
 		},
 	})
 
+	// Handlers registered via on_actions_menu_show; Navbar calls
+	// page.fire_actions_menu_show() when the actions dropdown opens (the vue
+	// equivalent of Bootstrap's show.bs.dropdown).
+	const actionsMenuShowHandlers: Array<() => void> = []
+
 	const page: Page = {
 		state,
 
@@ -479,6 +484,22 @@ export function createPage(opts: PageOptions = {}): Page {
 		hide_icon_group() {},
 		show_actions_menu() {},
 		hide_actions_menu() {},
+		// The actions dropdown trigger element, for legacy code that binds to it.
+		get actions_btn_group() {
+			return $wrap(
+				state.refs.pageHead?.querySelector<HTMLElement>('.actions-btn-group') ?? null,
+				page,
+			)
+		},
+		// Register a handler fired when the actions dropdown opens (replaces the
+		// legacy `actions_btn_group.on("show.bs.dropdown")`). Navbar calls
+		// fire_actions_menu_show() on open.
+		on_actions_menu_show(handler: () => void) {
+			actionsMenuShowHandlers.push(handler)
+		},
+		fire_actions_menu_show() {
+			actionsMenuShowHandlers.forEach((fn) => fn())
+		},
 		add_actions_menu_item(label: string, click?: (...args: any[]) => any) {
 			return this.add_action_item(label, click)
 		},

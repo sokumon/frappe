@@ -27,6 +27,8 @@ const isSingle = computed(() => !!doctype.value && frappe.model?.is_single?.(doc
 	<Page v-else-if="isPage" :name="slug" />
 	<!-- single doctype: the document name is the doctype itself -->
 	<Form v-else-if="isSingle" :doctype="slug" :name="doctype" />
-	<!-- plain list: pass the resolved doctype so List needn't re-derive it -->
-	<List v-else :doctype="doctype || slug" />
+	<!-- plain list: pass the resolved doctype so List needn't re-derive it.
+		 `:key` forces a remount when the doctype changes (vue-router reuses the
+		 same component instance otherwise, so List's onMounted wouldn't re-run). -->
+	<List v-else :key="doctype || slug" :doctype="doctype || slug" />
 </template>

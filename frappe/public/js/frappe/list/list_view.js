@@ -196,7 +196,6 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	setup_page_head() {
-		if (frappe.vue_shell) return;
 		super.setup_page_head();
 		this.set_primary_action();
 		this.set_actions_menu_items();
@@ -834,7 +833,6 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 	}
 
 	toggle_actions_menu_button(toggle) {
-		if (frappe.vue_shell) return;
 		if (toggle) {
 			this.page.show_actions_menu();
 			this.page.clear_primary_action();
@@ -2207,10 +2205,17 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		});
 
 		let me = this;
-		if (frappe.vue_shell) return;
-		this.page.actions_btn_group.on("show.bs.dropdown", () => {
-			me.toggle_workflow_actions();
-		});
+		// Refresh workflow-action visibility when the actions dropdown opens.
+		// Legacy binds the Bootstrap `show.bs.dropdown` event on the node; the
+		// vue Navbar's Dropdown doesn't emit it, so the bridge exposes an
+		// `on_actions_menu_show` hook the Navbar fires instead.
+		const actions = this.page.actions_btn_group;
+		if (actions && actions.on) {
+			actions.on("show.bs.dropdown", () => me.toggle_workflow_actions());
+		}
+		if (this.page.on_actions_menu_show) {
+			this.page.on_actions_menu_show(() => me.toggle_workflow_actions());
+		}
 	}
 
 	setup_like() {

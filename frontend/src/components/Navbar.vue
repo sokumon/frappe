@@ -6,8 +6,17 @@
 import { computed } from 'vue'
 import { Badge, Breadcrumbs, Button, Dropdown, FeatherIcon } from 'frappe-ui'
 import type { PageInnerButton, PageState } from '@/page/types'
+import { usePage } from '@/page/usePage'
 
 const props = defineProps<{ state: PageState }>()
+
+// The owning page (always present — Navbar only renders inside a PageShell).
+// Used to fire the actions-menu-show hook legacy code registers.
+const page = usePage()
+
+function onActionsMenuToggle(open: boolean) {
+	if (open) page.fire_actions_menu_show?.()
+}
 
 // Frappe indicator colours -> frappe-ui Badge themes.
 const BADGE_THEME: Record<string, string> = {
@@ -156,8 +165,14 @@ const visibleCustomGroups = computed(() =>
 			</Dropdown>
 
 			<!-- actions-btn-group -->
-			<Dropdown v-if="visibleActionItems.length" :options="toOptions(visibleActionItems)">
-				<Button variant="solid">Actions</Button>
+			<Dropdown
+				v-if="visibleActionItems.length"
+				class="actions-btn-group"
+				:options="toOptions(visibleActionItems)"
+			>
+				<template #default="{ open }">
+					<Button variant="solid" @click="onActionsMenuToggle(!open)">Actions</Button>
+				</template>
 			</Dropdown>
 
 			<!-- secondary / primary -->

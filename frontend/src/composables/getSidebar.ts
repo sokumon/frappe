@@ -373,9 +373,30 @@ function markActive() {
   }
 }
 
+// Legacy reads the module off `router.meta.module`, which the desk router sets
+// from the route's doctype meta (set_doctype_route). The vue compat router does
+// not, so derive it from the route's doctype for List/Form/Tree/Report routes.
+function moduleForRoute(route: string[]): string | undefined {
+  const view = route[0]
+  if (!['List', 'Form', 'Tree', 'Report'].includes(view)) return undefined
+  const doctype = route[1]
+  if (!doctype) return undefined
+  return frappe?.get_meta?.(doctype)?.module || undefined
+}
+
 function resolveForCurrentRoute(module?: string) {
   const route = (frappe?.get_route?.() ?? []) as string[]
-  const name = resolveSidebarName(route, module)
+
+  // For doctype routes the module comes from the doctype meta. If that meta
+  // isn't loaded yet (the change event can fire before the view fetches it),
+  // load it and re-resolve, so the sidebar isn't left empty on first paint.
+  const doctype = ['List', 'Form', 'Tree', 'Report'].includes(route[0]) ? route[1] : undefined
+  if (doctype && module === undefined && !frappe?.get_meta?.(doctype)) {
+    frappe?.model?.with_doctype?.(doctype, () => resolveForCurrentRoute())
+    return
+  }
+
+  const name = resolveSidebarName(route, module ?? moduleForRoute(route))
   if (name) {
     setSidebar(name)
   } else {

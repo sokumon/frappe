@@ -36,5 +36,7 @@ const doctype = computed(() => route.params.doctype as string)
 </script>
 
 <template>
-	<component :is="component" :doctype="doctype" :view="view" />
+	<!-- `:key` forces a remount when the doctype or view changes; otherwise
+		 vue-router reuses the same instance and the view's onMounted won't re-run. -->
+	<component :is="component" :key="`${doctype}/${view}`" :doctype="doctype" :view="view" />
 </template>

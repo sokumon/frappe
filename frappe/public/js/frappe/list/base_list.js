@@ -169,17 +169,8 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	setup_page() {
-		if (frappe.get_route()[0] === "List") {
-			this.page = this.parent;
-			Object.assign(this.page, this.page_api);
-			this.$page = $(this.page);
-			this.page.main = this.$page;
-			this.page.page_form = this.$page.find(".page-form");
-		} else {
-			this.page = this.parent.page;
-			this.$page = $(this.parent);
-		}
-
+		this.page = this.parent.page;
+		this.$page = $(this.parent);
 		this.page.main.addClass("layout-main-list");
 		this.page.page_form.removeClass("row").addClass("flex");
 		this.hide_page_form && this.page.page_form.hide();
@@ -187,7 +178,6 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	setup_page_head() {
-		if (frappe.vue_shell) return;
 		this.set_breadcrumbs();
 		this.set_title();
 		this.set_menu_items();
@@ -198,7 +188,6 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	setup_view_menu() {
-		if (frappe.vue_shell) return;
 		if (frappe.boot.desk_settings.view_switcher && !this.meta.force_re_route_to_default_view) {
 			const icon_map = {
 				Image: "image",
@@ -228,14 +217,16 @@ frappe.views.BaseList = class BaseList {
 				label_map[this.view_name] || label_map["List"],
 				icon_map[this.view_name] || "list"
 			);
-			this.views_list = new frappe.views.ListViewSelect({
-				doctype: this.doctype,
-				parent: this.views_menu,
-				page: this.page,
-				list_view: this,
-				icon_map: icon_map,
-				label_map: label_map,
-			});
+			if (!frappe.vue_shell) {
+				this.views_list = new frappe.views.ListViewSelect({
+					doctype: this.doctype,
+					parent: this.views_menu,
+					page: this.page,
+					list_view: this,
+					icon_map: icon_map,
+					label_map: label_map,
+				});
+			}
 		}
 	}
 

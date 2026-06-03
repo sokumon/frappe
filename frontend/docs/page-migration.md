@@ -247,3 +247,8 @@ shouldn't go through page chrome at all.**
   `add_field`, or rewrite that single caller?
 - Do we preserve the mobile-specific behaviours (`hidden-xl` menu mirroring of inner
   buttons, mobile awesomebar) or redesign them in the Vue chrome?
+- **List filter bar** — un-gating `setup_filter_area` / `setup_sort_selector` /
+  `setup_list_filter_by` is blocked on a design decision: the legacy jQuery filter
+  widgets need a traversable DOM node (`.parent()`/`.append()`) and desk-scoped
+  `.btn`/`.dropdown` CSS, but the Navbar is deliberately outside `.old-desk-view`.
+  See [`list-filters-migration.md`](./list-filters-migration.md).
