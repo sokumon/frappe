@@ -1,5 +1,5 @@
 <template>
-	<div ref="el" class="old-desk-view"><slot /></div>
+	<div ref="el" class="old-desk-view overflow-auto"><slot /></div>
 </template>
 
 <script setup lang="ts">

@@ -8,6 +8,31 @@
 @import "../common/modal";
 
 @scope (.old-desk-view, .modal) to (.tw) {
+	// The desk's base typography is set on `html`/`body` — by Bootstrap's reboot
+	// (imported via bootstrap-components below), by common/global.scss and by
+	// desk/global.scss. Inside @scope those selectors can't match: the scope
+	// roots (.old-desk-view/.modal) are ancestors of the desk, not descendants.
+	// Without this the desk falls back to the shell's font and the root 16px size
+	// instead of Bootstrap's 14px base. Reproduce that body base on the scope root.
+	:scope {
+		font-family: $font-family-base; // var(--font-stack)
+		font-size: $font-size-base; // 0.875rem → 14px
+		font-weight: var(--weight-regular);
+		line-height: $line-height-base;
+		letter-spacing: 0.02em;
+		color: var(--text-muted);
+		text-align: left;
+		font-variation-settings: "opsz" 24;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+	}
+	// `:scope` matches BOTH scope roots (.old-desk-view AND .modal). The body
+	// background belongs to the desk viewport only — putting it on `.modal` would
+	// paint the full-screen modal container opaque (it must stay transparent; the
+	// dim comes from `.modal-backdrop`, the panel bg from `.modal-content`).
+	:scope.old-desk-view {
+		background-color: var(--bg-color);
+	}
 	@import "bootstrap-components";
 	@import "../common/mixins.scss";
 	@import "../common/global.scss";
@@ -22,6 +47,7 @@
 	@import "print_preview";
 	@import "scrollbar";
 	@import "navbar";
+	@import "search_widget";
 	@import "slides";
 	@import "toast";
 	@import "breadcrumb";
