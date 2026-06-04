@@ -392,7 +392,11 @@ frappe.views.BaseList = class BaseList {
 				</div>
 			</div>`
 		).hide();
-		this.$frappe_list.append(this.$paging_area);
+		// In the Vue shell the page footer is a dedicated bar pinned to the bottom,
+		// so the pagination lives there; the legacy desk keeps it inline at the end
+		// of the list.
+		const $paging_parent = frappe.vue_shell ? this.page.footer : this.$frappe_list;
+		$paging_parent.append(this.$paging_area);
 
 		// set default paging btn active
 		this.$paging_area

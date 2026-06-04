@@ -10,6 +10,7 @@
 import { computed, onMounted, useTemplateRef } from 'vue'
 import { Sidebar } from 'frappe-ui'
 import Navbar from './Navbar.vue'
+import Footer from './Footer.vue'
 import { createPage } from '@/page/createPage'
 import { providePage } from '@/page/usePage'
 import { useWorkspaceSidebar } from '@/composables/getSidebar'
@@ -49,7 +50,7 @@ const wrapper = useTemplateRef<HTMLDivElement>('wrapper')
 const pageWrapper = useTemplateRef<HTMLDivElement>('pageWrapper')
 const pageBody = useTemplateRef<HTMLDivElement>('pageBody')
 const main = useTemplateRef<HTMLElement>('main')
-const footer = useTemplateRef<HTMLDivElement>('footer')
+const footer = useTemplateRef<{ $el: HTMLElement }>('footer')
 const pageForm = useTemplateRef<HTMLDivElement>('pageForm')
 const filters = useTemplateRef<HTMLDivElement>('filters')
 const navbar = useTemplateRef<{ $el: HTMLElement }>('navbar')
@@ -63,7 +64,7 @@ onMounted(() => {
 	refs.pageBody = pageBody.value
 	refs.main = main.value
 	refs.sidebar = sidebarRef.value?.$el ?? null
-	refs.footer = footer.value
+	refs.footer = footer.value?.$el ?? null
 	refs.pageForm = pageForm.value
 	refs.filters = filters.value
 
@@ -124,7 +125,9 @@ defineExpose({ page })
 									</div>
 								</div>
 							</main>
-							<footer ref="footer" class="layout-footer" />
+							<Footer ref="footer">
+								<slot name="footer" />
+							</Footer>
 						</div>
 					</div>
 				</div>

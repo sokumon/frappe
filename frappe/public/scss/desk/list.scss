@@ -388,6 +388,14 @@ $level-margin-right: 8px;
 	}
 }
 
+// In the Vue shell the pagination is moved out of `.frappe-list` into the page
+// footer (see base_list.js setup_paging_area). Restore the horizontal margin and
+// vertical padding it used to inherit from `.frappe-list` / `.layout-main-list`.
+.layout-footer .list-paging-area {
+	margin: 0 var(--margin-md);
+	padding: var(--padding-sm) 0;
+}
+
 .progress {
 	height: 10px;
 }
