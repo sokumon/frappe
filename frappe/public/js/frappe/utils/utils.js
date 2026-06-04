@@ -1422,9 +1422,9 @@ Object.assign(frappe.utils, {
 		let is_espresso = icon_name.startsWith("es-");
 
 		icon_name = is_espresso ? `${"#" + icon_name}` : `${"#icon-" + icon_name}`;
-		if (frappe.vue_shell && !is_espresso) {
-			icon_name = icon_name.replace("#icon-", "");
-		}
+		// if (frappe.vue_shell && !is_espresso) {
+		// 	icon_name = icon_name.replace("#icon-", "");
+		// }
 		if (typeof size == "object") {
 			icon_style += ` width: ${size.width}; height: ${size.height}`;
 		} else {

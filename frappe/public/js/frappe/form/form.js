@@ -910,10 +910,12 @@ frappe.ui.form.Form = class FrappeForm {
 		this.viewers.refresh();
 
 		this.dashboard.refresh();
-		const _route_key = frappe.breadcrumbs.current_page();
-		const _crumb = frappe.breadcrumbs.all[_route_key];
-		if (_crumb) {
-			_crumb.layout_name = this.doctype_layout?.name || null;
+		if (!frappe.vue_shell) {
+			const _route_key = frappe.breadcrumbs.current_page();
+			const _crumb = frappe.breadcrumbs.all[_route_key];
+			if (_crumb) {
+				_crumb.layout_name = this.doctype_layout?.name || null;
+			}
 		}
 		if (!frappe.vue_shell) frappe.breadcrumbs.update();
 
@@ -925,6 +927,20 @@ frappe.ui.form.Form = class FrappeForm {
 		this.show_web_link();
 		this.show_report_bug_link();
 		this.show_workflow_read_only_banner();
+	}
+
+	_update_layout_indicator() {
+		if (frappe.vue_shell) return;
+		this.page.wrapper.find(".layout-indicator").remove();
+		if (this.doctype_layout?.title) {
+			this.page.wrapper
+				.find(".title-area")
+				.append(
+					`<span class="layout-indicator indicator-pill ms-2">${frappe.utils.escape_html(
+						__(this.doctype_layout.title)
+					)}</span>`
+				);
+		}
 	}
 
 	// SAVE
