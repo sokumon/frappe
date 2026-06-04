@@ -6,6 +6,7 @@ import "./frappe/ui/keyboard.js";
 import "./frappe/ui/messages.js";
 // import "./frappe/ui/sidebar/sidebar.js";
 import "./frappe/ui/desktop_icon.html";
+import "./frappe/ui/sort_selector.html";
 import "./frappe/ui/menu.js";
 import "./frappe/views/pageview.js";
 import "./frappe/views/workspace/workspace.js";

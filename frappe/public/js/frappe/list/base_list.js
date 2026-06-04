@@ -303,7 +303,6 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	setup_filter_area() {
-		if (frappe.vue_shell) return;
 		if (this.hide_filters) return;
 		this.filter_area = new FilterArea(this);
 
@@ -315,7 +314,6 @@ frappe.views.BaseList = class BaseList {
 	}
 
 	setup_sort_selector() {
-		if (frappe.vue_shell) return;
 		if (this.hide_sort_selector) return;
 		this.sort_selector = new frappe.ui.SortSelector({
 			parent: this.$filter_section,
