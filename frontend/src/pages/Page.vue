@@ -67,7 +67,8 @@ async function loadPage(name: string) {
 
 				if (pagedoc.style) {
 					styleEl = document.createElement('style')
-					styleEl.textContent = pagedoc.style
+					let styleContent = frappe.dom.scope_page_css(pagedoc.style)
+					styleEl.textContent = styleContent
 					document.head.appendChild(styleEl)
 				}
 

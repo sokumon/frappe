@@ -114,6 +114,164 @@ frappe.dom = {
 		document.getElementsByTagName("head")[0].appendChild(se);
 		return se;
 	},
+	// Wrap legacy page CSS (frappe.views.Page#pagedoc.style, injected via set_style)
+	// so it participates in the same CSS @scope as the desk bundle — see
+	// scss/desk/new_index.scss: `@scope (.old-desk-view, .modal) to (.tw)`.
+	//
+	// Why: in the Vue shell the desk's Bootstrap/component styles are scoped, which
+	// gives them scope-proximity precedence in the cascade. Unscoped page CSS sits at
+	// "infinite" proximity, so it loses every equal-specificity collision to a scoped
+	// desk rule (e.g. .navbar beating a page's .navbar-container). Sharing the scope
+	// root makes proximity tie, so source order decides again — and page CSS is
+	// injected after the bundle, so it wins, exactly as before @scope existed.
+	//
+	// Caveat handled here: top-level "global" rules can't live inside @scope, because
+	// the scope roots (.old-desk-view / .modal) are descendants of <html>. Rules
+	// targeting :root / html / body / [data-theme], and name-defining or blockless
+	// at-rules (@keyframes, @font-face, @import, …), are hoisted out and left at the
+	// top level; everything else is scoped. @media/@supports/@container are split
+	// recursively so their inner rules get the same treatment.
+	scope_page_css: function (css) {
+		if (!css || !css.trim()) return css;
+		const { globals, scopable } = frappe.dom._split_scopable_css(css);
+		let out = globals;
+		if (scopable.trim()) {
+			out +=
+				(out ? "\n\n" : "") + `@scope (.old-desk-view, .modal) to (.tw) {\n${scopable}\n}`;
+		}
+		return out;
+	},
+	_split_scopable_css: function (css) {
+		const globals = [];
+		const scopable = [];
+		for (const node of frappe.dom._parse_css_nodes(css)) {
+			if (node.is_at && /^@(media|supports|container)\b/i.test(node.prelude)) {
+				// Conditional group rule: split its body so inner globals stay global
+				// (still gated by the condition) and inner rules get scoped.
+				const inner = frappe.dom._split_scopable_css(node.body);
+				if (inner.globals.trim()) globals.push(`${node.prelude} {\n${inner.globals}\n}`);
+				if (inner.scopable.trim())
+					scopable.push(`${node.prelude} {\n${inner.scopable}\n}`);
+			} else if (node.is_at) {
+				// @keyframes / @font-face / @import / @charset / @property / @page /
+				// @layer / @namespace / anything else → must stay at the top level.
+				globals.push(node.raw);
+			} else if (frappe.dom._selector_targets_root(node.prelude)) {
+				globals.push(node.raw);
+			} else {
+				scopable.push(node.raw);
+			}
+		}
+		return { globals: globals.join("\n"), scopable: scopable.join("\n") };
+	},
+	// Tokenize the top level of a stylesheet into rules, skipping comments and
+	// strings. Returns { is_at, prelude, body, raw } per node (body is null for
+	// blockless at-rules like `@import "...";`).
+	_parse_css_nodes: function (css) {
+		const nodes = [];
+		const n = css.length;
+		let i = 0;
+		const skip_string = (pos) => {
+			const quote = css[pos++];
+			while (pos < n) {
+				if (css[pos] === "\\") pos += 2;
+				else if (css[pos] === quote) return pos + 1;
+				else pos++;
+			}
+			return pos;
+		};
+		const skip_comment = (pos) => {
+			const end = css.indexOf("*/", pos + 2);
+			return end === -1 ? n : end + 2;
+		};
+		while (i < n) {
+			if (/\s/.test(css[i])) {
+				i++;
+				continue;
+			}
+			if (css[i] === "/" && css[i + 1] === "*") {
+				i = skip_comment(i);
+				continue;
+			}
+			const start = i;
+			let brace = -1;
+			let semi = -1;
+			while (i < n) {
+				const c = css[i];
+				if (c === "/" && css[i + 1] === "*") {
+					i = skip_comment(i);
+					continue;
+				}
+				if (c === '"' || c === "'") {
+					i = skip_string(i);
+					continue;
+				}
+				if (c === "{") {
+					brace = i;
+					break;
+				}
+				if (c === ";") {
+					semi = i;
+					break;
+				}
+				i++;
+			}
+			if (brace === -1 && semi === -1) {
+				const raw = css.slice(start).trim();
+				if (raw) nodes.push({ is_at: raw[0] === "@", prelude: raw, body: null, raw });
+				break;
+			}
+			if (semi !== -1 && (brace === -1 || semi < brace)) {
+				// blockless statement, e.g. `@import "x";` (keep the trailing ';')
+				const raw = css.slice(start, semi + 1).trim();
+				i = semi + 1;
+				nodes.push({
+					is_at: raw[0] === "@",
+					prelude: css.slice(start, semi).trim(),
+					body: null,
+					raw,
+				});
+				continue;
+			}
+			// block rule: walk to the matching close brace
+			const prelude = css.slice(start, brace).trim();
+			let depth = 1;
+			i = brace + 1;
+			const body_start = i;
+			while (i < n && depth > 0) {
+				const c = css[i];
+				if (c === "/" && css[i + 1] === "*") {
+					i = skip_comment(i);
+					continue;
+				}
+				if (c === '"' || c === "'") {
+					i = skip_string(i);
+					continue;
+				}
+				if (c === "{") depth++;
+				else if (c === "}") depth--;
+				i++;
+			}
+			const body = css.slice(body_start, depth === 0 ? i - 1 : i);
+			const raw = css.slice(start, i).trim();
+			nodes.push({ is_at: prelude[0] === "@", prelude, body, raw });
+		}
+		return nodes;
+	},
+	// A style rule must stay unscoped when any selector in its list targets the
+	// document root or an ancestor of the scope root — :root, html, body, or the
+	// [data-theme] attribute Frappe sets on <html>. Those subjects live above
+	// .old-desk-view, so they can never match from inside @scope.
+	_selector_targets_root: function (selector) {
+		return selector.split(",").some((sel) => {
+			const s = sel.trim();
+			return (
+				/^(html|body)(\s|,|\.|#|\[|:|>|\+|~|$)/i.test(s) ||
+				/^:root(\s|,|\.|#|\[|:|>|\+|~|$)/i.test(s) ||
+				/^\[data-theme/i.test(s)
+			);
+		});
+	},
 	add: function (parent, newtag, className, cs, innerHTML, onclick) {
 		if (parent && parent.substr) parent = frappe.dom.by_id(parent);
 		var c = document.createElement(newtag);
