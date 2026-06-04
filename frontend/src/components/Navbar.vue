@@ -161,7 +161,7 @@ const visibleCustomGroups = computed(() =>
 
 			<!-- menu-btn-group -->
 			<Dropdown v-if="visibleMenuItems.length" :options="toOptions(visibleMenuItems)">
-				<Button icon="more-horizontal" />
+				<Button icon="lucide-more-horizontal" />
 			</Dropdown>
 
 			<!-- actions-btn-group -->

@@ -28,14 +28,14 @@ export default defineConfig({
 		},
 	},
 	optimizeDeps: {
-		include: [
-			'frappe-ui > feather-icons',
-			'showdown',
-			'tailwind.config.js',
-			'engine.io-client',
-			'highlight.js/lib/core',
-			'interactjs',
-		],
+		// frappe-ui v1 ships as source and its TextEditor imports `~icons/lucide/*`
+		// virtual modules that only its own Vite plugin (LucideIconsPlugin) can
+		// resolve. esbuild's dep pre-bundler doesn't run that plugin, so it must NOT
+		// pre-bundle frappe-ui — exclude it and let the dev plugin pipeline serve it.
+		exclude: ['frappe-ui'],
+		// `highlight.js/lib/core` and `interactjs` are added by the frappeui plugin
+		// itself; `showdown` was dropped in frappe-ui v1 (it uses `marked` now).
+		include: ['frappe-ui > feather-icons', 'tailwind.config.js', 'engine.io-client'],
 	},
 })
 

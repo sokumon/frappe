@@ -9,7 +9,9 @@ export default function registerCheck() {
 			const test = ref('asdf')
 			this.props = {
 				label: this.df.label,
-				checked: this.frm.doc[this.df.fieldname],
+				// frappe-ui v1 Checkbox uses `v-model` (defineModel) — it no longer
+				// reads the `checked` prop, so the value must come in via modelValue.
+				modelValue: this.frm.doc[this.df.fieldname],
 				'onUpdate:modelValue': (value) => {
 					me.parse_validate_and_set_in_model(value)
 				},

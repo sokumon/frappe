@@ -3,6 +3,7 @@ import router from './router'
 import App from './App.vue'
 import './index.css'
 import dialog from "@/composables/dialog.js"
+import toast from "@/composables/toast.js"
 import { Button, setConfig, frappeRequest, resourcesPlugin } from 'frappe-ui'
 import { spritePlugin } from "frappe-ui/icons"
 import { FrappeApp } from "@/frappeApp"
@@ -106,6 +107,7 @@ async function initFrappe() {
     values = values.data
     if (!window.frappe) window.frappe = {};
     window.frappe = { ...window.frappe, ...values }
+
     await appendIcons(values.app_include_icons)
     await appendScripts(values.app_include_js)
     let cssFiles = [frappe.boot.assets_json['newdesk.bundle.css']]

@@ -90,15 +90,6 @@ const formcontainer = useTemplateRef('form-view-container')
 let form: any
 let is_dirty
 
-const options = [
-	{ label: 'Edit', icon: 'edit', onClick: () => console.log('Edit clicked') },
-	{
-		label: 'Delete',
-		icon: 'trash-2',
-		theme: 'red',
-		onClick: () => console.log('Delete clicked'),
-	},
-]
 onMounted(async () => {
 	frappe.model.with_doctype(doctype, function () {
 		frappe.ui.form.Form.prototype.add_custom_button = function (label, callback, grp) {
@@ -166,7 +157,7 @@ function save() {
 }
 
 import { Avatar } from 'frappe-ui'
-let theme = ref('grey')
+let theme = ref('gray')
 let badgeContent = ref('status')
 
 // route params: doctype (url slug) and name (document name)

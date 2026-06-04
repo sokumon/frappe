@@ -1,13 +1,17 @@
-import { render, h, ref } from 'vue'
+import { render, h } from 'vue'
 import { Button, Dialog } from 'frappe-ui'
 
 export default function dialog(params) {
-	let props = {}
-	props['open'] = true
-	params['message'] = params.msg
-	props['options'] = params
+	// frappe-ui v1 Dialog takes flat top-level props instead of the legacy
+	// `options` blob; `open` is the canonical visibility prop.
+	const props = {
+		open: true,
+		title: params.title,
+		message: params.message ?? params.msg,
+	}
+	if (params.size) props.size = params.size
 
-	let slots = {
+	const slots = {
 		actions: ({ close }) =>
 			h('div', { class: 'flex flex-row-reverse gap-2' }, [
 				h(
@@ -23,6 +27,6 @@ export default function dialog(params) {
 			]),
 	}
 
-	let vnode = h(Dialog, props, slots)
+	const vnode = h(Dialog, props, slots)
 	render(vnode, document.body)
 }
