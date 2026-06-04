@@ -61,7 +61,38 @@ function appendStyles(styles){
             linkEl.href = style;
             document.head.appendChild(linkEl)
         }))
-    
+
+}
+
+// Mirrors the include_icons() jinja helper used by the legacy desk: fetches each
+// app_include_icons SVG sprite and injects it into #all-symbols. Desk bundles
+// (e.g. the icon form control) read available glyphs from
+// #all-symbols > svg > symbol[id], so the sprites must live in that container.
+async function appendIcons(icons: string[]) {
+    if (!icons?.length) return
+
+    let container = document.getElementById('all-symbols')
+    if (!container) {
+        container = document.createElement('div')
+        container.id = 'all-symbols'
+        container.style.display = 'none'
+        document.body.appendChild(container)
+    }
+    const target = container
+
+    const version = frappe?.build_version
+    await Promise.all(
+        icons.map(async (path: string) => {
+            try {
+                const url = version ? `${path}?v=${version}` : path
+                const res = await fetch(url, { credentials: 'same-origin' })
+                const svg = await res.text()
+                target.insertAdjacentHTML('beforeend', svg)
+            } catch (e) {
+                console.error(`Failed to load icons: ${path}`, e)
+            }
+        })
+    )
 }
 // Loads frappe boot context and the desk bundles (libs, controls, erpnext, ...).
 // Resolves only once every filtered script's onload has fired, so callers can
@@ -75,6 +106,7 @@ async function initFrappe() {
     values = values.data
     if (!window.frappe) window.frappe = {};
     window.frappe = { ...window.frappe, ...values }
+    await appendIcons(values.app_include_icons)
     await appendScripts(values.app_include_js)
     let cssFiles = [frappe.boot.assets_json['newdesk.bundle.css']]
     appendStyles(cssFiles)
