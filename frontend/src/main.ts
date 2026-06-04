@@ -113,6 +113,7 @@ async function initFrappe() {
     let cssFiles = [frappe.boot.assets_json['newdesk.bundle.css']]
     appendStyles(cssFiles)
     if (window.system_timezone) setConfig('systemTimezone', window.system_timezone)
+    frappe.toast = toast
 }
 let isBootstraped = false;
 function bootstrap() {
