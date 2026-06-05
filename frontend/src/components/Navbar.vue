@@ -7,8 +7,13 @@ import { computed } from 'vue'
 import { Badge, Breadcrumbs, Button, Dropdown, FeatherIcon } from 'frappe-ui'
 import type { PageInnerButton, PageState } from '@/page/types'
 import { usePage } from '@/page/usePage'
+import { useBreadcrumbs } from '@/composables/getBreadcrumbs'
 
 const props = defineProps<{ state: PageState }>()
+
+// Route-driven breadcrumbs (the Vue port of frappe.breadcrumbs). Shown in the
+// title area in place of the bare page title when present.
+const { breadcrumbs } = useBreadcrumbs()
 
 // The owning page (always present — Navbar only renders inside a PageShell).
 // Used to fire the actions-menu-show hook legacy code registers.
@@ -92,7 +97,10 @@ const visibleCustomGroups = computed(() =>
 	>
 		<!-- title-area -->
 		<div class="flex items-center gap-2 min-w-0">
-			<Breadcrumbs v-if="state.breadcrumbs.length" :items="state.breadcrumbs">
+			<Breadcrumbs
+				v-if="breadcrumbs.visible && breadcrumbs.items.length"
+				:items="breadcrumbs.items"
+			>
 				<template #prefix="{ item }">
 					<component :is="item.icon" v-if="item.icon" class="size-4" />
 				</template>

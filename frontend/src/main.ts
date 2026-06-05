@@ -8,6 +8,7 @@ import { Button, setConfig, frappeRequest, resourcesPlugin } from 'frappe-ui'
 import { spritePlugin } from "frappe-ui/icons"
 import { FrappeApp } from "@/frappeApp"
 import { installPageBridge } from "@/page/createPage"
+import { installBreadcrumbs } from "@/composables/getBreadcrumbs"
 async function appendScripts(scripts) {
     if (!scripts?.length) return
 
@@ -30,13 +31,8 @@ async function appendScripts(scripts) {
                 frappe.vue_shell = true
                 frappe.user_roles = frappe.boot.user.roles
                 frappe.sys_defaults = frappe.boot.sysdefaults
-                frappe.breadcrumbs = {
-                    preferred: {},
-                    module_map: {},
-                    add: function(){
-                        console.log("add breadcrumb", arguments)
-                    }
-                }
+                // frappe.breadcrumbs is published by installBreadcrumbs() in
+                // bootstrap() (Vue port of views/breadcrumbs.js).
                 counter++;
                 if(counter == filteredScripts.length && !isBootstraped){
                     bootstrap()
@@ -139,6 +135,12 @@ function bootstrap() {
     // frappe.router.setup, called from load_bootinfo). Must run before mount so
     // frappe.router.routes is populated before any component reads it.
     frappe.router.setup()
+
+    // Publish the reactive frappe.breadcrumbs (Vue port of views/breadcrumbs.js)
+    // and wire it to the router. Replaces the load-time stub / legacy DOM impl so
+    // <Navbar> renders breadcrumbs from the route. Runs after router.setup so the
+    // slug map + workspaces it reads are ready.
+    installBreadcrumbs()
 
     app.use(router)
     window.frappe._router = router

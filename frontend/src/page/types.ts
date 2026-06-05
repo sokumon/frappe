@@ -94,7 +94,6 @@ export interface PageState {
 	title: string
 	subtitle: string
 	titleIcon: string
-	breadcrumbs: any[]
 	indicator: PageIndicator | null
 	innerMessage: string
 	primaryAction: PageAction | null

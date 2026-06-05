@@ -204,7 +204,6 @@ export function createPage(opts: PageOptions = {}): Page {
 		title: opts.title ?? '',
 		subtitle: '',
 		titleIcon: '',
-		breadcrumbs: [],
 		indicator: null,
 		innerMessage: '',
 		primaryAction: null,

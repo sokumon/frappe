@@ -61,7 +61,7 @@ export class InfoCard {
 			});
 		$(document).on("click", function (e) {
 			const path = e.originalEvent?.composedPath();
-			if (!path || !path.includes(me.label_area)) {
+			if (!path || (!path.includes(me.label_area) && me.card)) {
 				me.card.hide();
 			}
 		});

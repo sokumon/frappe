@@ -917,7 +917,10 @@ frappe.ui.form.Form = class FrappeForm {
 				_crumb.layout_name = this.doctype_layout?.name || null;
 			}
 		}
-		if (!frappe.vue_shell) frappe.breadcrumbs.update();
+		// In the vue shell frappe.breadcrumbs is the reactive Vue port; refresh it
+		// here too so the form crumb picks up the loaded doc's title (the route-
+		// change update runs before with_doc resolves).
+		frappe.breadcrumbs.update();
 
 		this.show_submit_message();
 		if (!frappe.vue_shell) {
