@@ -69,6 +69,8 @@ export interface PageCustomGroup {
 	primary: boolean
 	visible: boolean
 	items: PageMenuItem[]
+	// Attribute bag for the handle's `.attr()` (page.js set data-* on the group).
+	data?: Record<string, any>
 }
 
 // An inner-toolbar button. `group` collects buttons into a `<Dropdown>`.

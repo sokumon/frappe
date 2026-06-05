@@ -217,16 +217,14 @@ frappe.views.BaseList = class BaseList {
 				label_map[this.view_name] || label_map["List"],
 				icon_map[this.view_name] || "list"
 			);
-			if (!frappe.vue_shell) {
-				this.views_list = new frappe.views.ListViewSelect({
-					doctype: this.doctype,
-					parent: this.views_menu,
-					page: this.page,
-					list_view: this,
-					icon_map: icon_map,
-					label_map: label_map,
-				});
-			}
+			this.views_list = new frappe.views.ListViewSelect({
+				doctype: this.doctype,
+				parent: this.views_menu,
+				page: this.page,
+				list_view: this,
+				icon_map: icon_map,
+				label_map: label_map,
+			});
 		}
 	}
 

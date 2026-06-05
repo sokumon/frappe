@@ -63,8 +63,8 @@ const innerToolbar = computed(() => {
 	return out
 })
 
-function toOptions(items: { label: string; onClick: (...a: any[]) => any }[]) {
-	return items.map((i) => ({ label: i.label, onClick: i.onClick }))
+function toOptions(items: { label: string; icon?: string; onClick: (...a: any[]) => any }[]) {
+	return items.map((i) => ({ label: i.label, icon: i.icon, onClick: i.onClick }))
 }
 
 // Turn a button's reactive `listeners` bag ({ click: [fn], mouseenter: [fn] })

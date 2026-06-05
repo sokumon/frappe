@@ -146,6 +146,13 @@ function ret<T>(target: T): T {
 			item.data = { ...(item.data || {}), [name]: value }
 			return proxy
 		},
+		// legacy `$el.parent()` walked from an <a> to its wrapping <li>; the flat
+		// menu item has no wrapper, so `.parent()` returns the same proxy and a
+		// following `.attr()` tags the item's data bag (e.g. ListViewSelect's
+		// add_view_to_menu `data-view` marker).
+		parent() {
+			return proxy
+		},
 		hide() {
 			item.visible = false
 			return proxy
@@ -185,6 +192,64 @@ function ret<T>(target: T): T {
 		},
 	}
 	return proxy as unknown as T
+}
+
+// page.js `add_custom_button_group` returns the jQuery `.dropdown-menu` element.
+// Legacy callers (ListViewSelect) both pass that return value back as the
+// `parent` of `add_custom_menu_item` AND chain jQuery-ish ops on it
+// (`.parent()`, `.attr()`, `.find()`, `.empty()`). This proxy reproduces that
+// surface over the reactive group, so no legacy JS edits are needed. `__group`
+// lets `get_custom_button_group` resolve the handle back to its group; same
+// T2-proxy spirit as ret() (page-migration.md §5).
+function menuHandle(group: PageCustomGroup) {
+	const proxy: any = {
+		__group: group,
+		get id() {
+			return group.id
+		},
+		// The `.dropdown-menu` and its `.custom-btn-group` wrapper both collapse to
+		// the one group here, so walking up/into the tree returns the same proxy —
+		// and the proxy is itself a valid `add_custom_menu_item` parent.
+		parent() {
+			return proxy
+		},
+		find() {
+			return proxy
+		},
+		attr(name: string, value?: any) {
+			if (value === undefined) return group.data?.[name]
+			group.data = { ...(group.data || {}), [name]: value }
+			return proxy
+		},
+		empty() {
+			group.items = []
+			return proxy
+		},
+		append() {
+			return proxy
+		},
+		addClass() {
+			return proxy
+		},
+		// page.js toggles the `hide` class on the group wrapper to show/hide it.
+		removeClass(cls?: string) {
+			if (cls === 'hide') group.visible = true
+			return proxy
+		},
+		toggleClass(cls: string, on?: boolean) {
+			if (cls === 'hide') group.visible = on === undefined ? !group.visible : !on
+			return proxy
+		},
+		hide() {
+			group.visible = false
+			return proxy
+		},
+		show() {
+			group.visible = true
+			return proxy
+		},
+	}
+	return proxy
 }
 
 function push<T>(list: T[], item: T): T {
@@ -415,11 +480,13 @@ export function createPage(opts: PageOptions = {}): Page {
 		},
 
 		// --- custom button groups (page.js add_custom_button_group, §5 #10) ----
-		// Returns a numeric group `id` as the handle; children target it by
-		// passing that id back as `parent` to add_custom_menu_item.
+		// page.js returns the jQuery `.dropdown-menu`; we return a menuHandle proxy
+		// over the reactive group that matches that surface — usable as an
+		// add_custom_menu_item `parent` AND chainable (.parent()/.attr()/.find()/
+		// .empty()), so ListViewSelect works unchanged.
 		add_custom_button_group(label: string, icon?: string, parent?: string) {
 			const existing = state.customGroups.find((g) => g.label === label && g.parent === parent)
-			if (existing) return existing.id
+			if (existing) return menuHandle(existing)
 			const group = reactive<PageCustomGroup>({
 				id: nextGroupId++,
 				label,
@@ -430,15 +497,18 @@ export function createPage(opts: PageOptions = {}): Page {
 				items: [],
 			})
 			state.customGroups.push(group)
-			return group.id
+			return menuHandle(group)
 		},
-		// Resolve a group by the handle returned from add_custom_button_group
-		// (id) or by its label.
-		get_custom_button_group(parent: number | string) {
+		// Resolve a group by the menuHandle returned from add_custom_button_group,
+		// or (back-compat) by its numeric id or label.
+		get_custom_button_group(parent: number | string | { __group?: PageCustomGroup }) {
+			if (parent && typeof parent === 'object') {
+				return parent.__group
+			}
 			return state.customGroups.find((g) => g.id === parent || g.label === parent)
 		},
 		add_custom_menu_item(
-			parent: number | string,
+			parent: number | string | { __group?: PageCustomGroup },
 			label: string,
 			click?: (...args: any[]) => any,
 			standard?: boolean,
@@ -465,7 +535,7 @@ export function createPage(opts: PageOptions = {}): Page {
 			label: string
 			click?: (...args: any[]) => any
 			standard?: boolean
-			parent: number | string
+			parent: number | string | { __group?: PageCustomGroup }
 			shortcut?: string
 			icon?: string
 		}) {
