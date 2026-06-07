@@ -2,7 +2,7 @@ import { createApp } from 'vue'
 import router from './router'
 import App from './App.vue'
 import './index.css'
-import dialog from "@/composables/dialog.js"
+import { msgprint, hide_msgprint, update_msgprint, confirm } from "@/composables/dialog.js"
 import toast from "@/composables/toast.js"
 import { Button, setConfig, frappeRequest, resourcesPlugin } from 'frappe-ui'
 import { spritePlugin } from "frappe-ui/icons"
@@ -110,6 +110,15 @@ async function initFrappe() {
     appendStyles(cssFiles)
     if (window.system_timezone) setConfig('systemTimezone', window.system_timezone)
     frappe.toast = toast
+    // Override the legacy bootstrapped frappe.msgprint (from messages.js) with
+    // the frappe-ui <Dialog> bridge. Must run after appendScripts so the desk
+    // bundle's definitions are already in place to overwrite.
+    frappe.msgprint = msgprint
+    frappe.hide_msgprint = hide_msgprint
+    frappe.update_msgprint = update_msgprint
+    window.msgprint = msgprint
+    // frappe.throw already routes through the bridge (it calls frappe.msgprint).
+    frappe.confirm = confirm
 }
 let isBootstraped = false;
 function bootstrap() {
