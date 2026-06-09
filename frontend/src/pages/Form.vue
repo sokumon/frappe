@@ -121,7 +121,7 @@ onMounted(async () => {
 		let select = registerSelect()
 		frappe.ui.form.ControlSelect = select
 		let date = registerDate()
-		// frappe.ui.form.ControlDate = date
+		frappe.ui.form.ControlDate = date
 		frappe.ui.form.Form.prototype.script_manager = {
 			trigger: async function (name, callback) {
 				console.log(name, callback)
