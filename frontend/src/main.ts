@@ -103,6 +103,9 @@ async function initFrappe() {
     values = values.data
     if (!window.frappe) window.frappe = {};
     window.frappe = { ...window.frappe, ...values }
+    frappe.breadcrumbs = {
+        preferred: []
+    },
 
     await appendIcons(values.app_include_icons)
     await appendScripts(values.app_include_js)
