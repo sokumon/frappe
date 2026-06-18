@@ -50,6 +50,13 @@ function toLucideIcon(iconStr?: string): string | null {
 	return lucideHas(name) ? name : null
 }
 
+// `Button`'s `iconLeft` prop wants the prefixed `lucide-*` string form (a bare
+// name is treated as a deprecated feather id), so wrap the resolved name.
+function toLucideIconLeft(iconStr?: string): string | undefined {
+	const name = toLucideIcon(iconStr)
+	return name ? `lucide-${name}` : undefined
+}
+
 const titleLucide = computed(() => toLucideIcon(props.state.titleIcon))
 
 // Action icons (add_action_icon) paired with their resolved lucide name.
@@ -124,7 +131,12 @@ function eventBindings(listeners?: Record<string, Array<(...a: any[]) => any>>) 
 }
 
 const visibleMenuItems = computed(() => props.state.menuItems.filter((i) => i.visible))
-const visibleActionItems = computed(() => props.state.actionItems.filter((i) => i.visible))
+// The actions dropdown is hidden by default; show_actions_menu() flips
+// actionsMenuVisible (list view does this on row selection). Still require items
+// to exist so an empty menu never renders.
+const visibleActionItems = computed(() =>
+	props.state.actionsMenuVisible ? props.state.actionItems.filter((i) => i.visible) : []
+)
 
 // Custom button groups (add_custom_button_group): labelled dropdowns whose
 // items arrive later via add_custom_menu_item. Shown once they have items.
@@ -186,7 +198,7 @@ const visibleCustomGroups = computed(() =>
 				<Button
 					v-else
 					:theme="entry.button.type === 'primary' ? 'gray' : undefined"
-					:icon-left="entry.button.icon"
+					:icon-left="toLucideIconLeft(entry.button.icon)"
 					:disabled="entry.button.disabled"
 					:class="entry.button.btnClass"
 					@click="entry.button.onClick()"
@@ -201,7 +213,10 @@ const visibleCustomGroups = computed(() =>
 				:key="`group-${group.id}`"
 				:options="toOptions(group.items.filter((it) => it.visible))"
 			>
-				<Button :theme="group.primary ? 'gray' : undefined" :icon-left="group.icon">
+				<Button
+					:theme="group.primary ? 'gray' : undefined"
+					:icon-left="toLucideIconLeft(group.icon)"
+				>
 					{{ group.label }}
 				</Button>
 			</Dropdown>

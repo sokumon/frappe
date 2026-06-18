@@ -102,6 +102,10 @@ export interface PageState {
 	secondaryAction: PageAction | null
 	menuItems: PageMenuItem[]
 	actionItems: PageMenuItem[]
+	// The actions dropdown (bulk operations) is hidden by default and only shown
+	// when callers invoke show_actions_menu() — e.g. list view toggles it on row
+	// selection. Mirrors the legacy `.actions-btn-group.hide` behaviour.
+	actionsMenuVisible: boolean
 	innerButtons: PageInnerButton[]
 	customGroups: PageCustomGroup[]
 	icons: PageIcon[]

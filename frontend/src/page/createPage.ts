@@ -275,6 +275,7 @@ export function createPage(opts: PageOptions = {}): Page {
 		secondaryAction: null,
 		menuItems: [],
 		actionItems: [],
+		actionsMenuVisible: false,
 		innerButtons: [],
 		customGroups: [],
 		icons: [],
@@ -546,13 +547,19 @@ export function createPage(opts: PageOptions = {}): Page {
 		},
 
 		// --- visibility toggles (page.js show_/hide_*) -------------------------
-		// The corresponding groups are v-if'd on list length in Navbar, so these
-		// are no-ops kept for API parity; callers that truly need to force-hide a
-		// populated group should clear it instead.
+		// The icon group is v-if'd on list length in Navbar, so these stay no-ops
+		// kept for API parity; callers that truly need to force-hide a populated
+		// group should clear it instead. The actions menu, however, is hidden by
+		// default and gated on actionsMenuVisible (list view shows it only while
+		// rows are selected).
 		show_icon_group() {},
 		hide_icon_group() {},
-		show_actions_menu() {},
-		hide_actions_menu() {},
+		show_actions_menu() {
+			state.actionsMenuVisible = true
+		},
+		hide_actions_menu() {
+			state.actionsMenuVisible = false
+		},
 		// The actions dropdown trigger element, for legacy code that binds to it.
 		get actions_btn_group() {
 			return $wrap(
