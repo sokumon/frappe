@@ -4,7 +4,8 @@
 // directly) AND the bridge-driven `pageState` (legacy set_primary_action /
 // add_inner_button calls). PageShell always mounts exactly one Navbar.
 import { computed } from 'vue'
-import { Badge, Breadcrumbs, Button, Dropdown, FeatherIcon } from 'frappe-ui'
+import { Badge, Breadcrumbs, Button, Dropdown } from 'frappe-ui'
+import { Icon } from 'frappe-ui/icons'
 import type { PageInnerButton, PageState } from '@/page/types'
 import { usePage } from '@/page/usePage'
 import { useBreadcrumbs } from '@/composables/getBreadcrumbs'
@@ -14,6 +15,47 @@ const props = defineProps<{ state: PageState }>()
 // Route-driven breadcrumbs (the Vue port of frappe.breadcrumbs). Shown in the
 // title area in place of the bare page title when present.
 const { breadcrumbs } = useBreadcrumbs()
+
+// The legacy page bridge feeds icon names from frappe's old icon vocabulary:
+// lucide ids (`square-pen`, `printer`, `ellipsis`), frappe sprite ids
+// (`es-line-*`) and the odd feather name. frappe-ui's `Icon` <use>s the lucide
+// sprite injected by spritePlugin (main.ts), so we alias the known non-lucide
+// names to their lucide equivalents and normalize the rest (mirrors the sidebar
+// icon handling in getSidebar.ts).
+const ICON_ALIASES: Record<string, string> = {
+	'es-line-reload': 'rotate-cw',
+	'es-line-left-chevron': 'chevron-left',
+	'es-line-right-chevron': 'chevron-right',
+}
+
+// Lazily snapshot the ids present in the injected sprite so an unknown name
+// renders nothing instead of a blank `<use href="#missing">`.
+let spriteIds: Set<string> | null = null
+function lucideHas(name: string): boolean {
+	if (!spriteIds) {
+		const sprite = document.getElementById('lucide-sprite')
+		if (!sprite) return true // can't verify yet; assume valid
+		spriteIds = new Set(Array.from(sprite.querySelectorAll('symbol[id]')).map((s) => s.id))
+	}
+	return spriteIds.has(name)
+}
+
+function toLucideIcon(iconStr?: string): string | null {
+	if (!iconStr) return null
+	const raw = iconStr
+		.trim()
+		.toLowerCase()
+		.replace(/[\s_]+/g, '-')
+	const name = ICON_ALIASES[raw] || raw
+	return lucideHas(name) ? name : null
+}
+
+const titleLucide = computed(() => toLucideIcon(props.state.titleIcon))
+
+// Action icons (add_action_icon) paired with their resolved lucide name.
+const actionIcons = computed(() =>
+	props.state.icons.map((icon) => ({ ...icon, lucide: toLucideIcon(icon.icon) }))
+)
 
 // The owning page (always present — Navbar only renders inside a PageShell).
 // Used to fire the actions-menu-show hook legacy code registers.
@@ -107,7 +149,7 @@ const visibleCustomGroups = computed(() =>
 			</Breadcrumbs>
 			<div v-else class="flex items-baseline gap-2 min-w-0">
 				<h1 class="text-lg font-semibold truncate flex items-center gap-1">
-					<FeatherIcon v-if="state.titleIcon" :name="state.titleIcon" class="h-4 w-4" />
+					<Icon v-if="titleLucide" :name="titleLucide" class="h-4 w-4" />
 					{{ state.title }}
 				</h1>
 				<span v-if="state.subtitle" class="text-sm text-ink-gray-5 truncate">
@@ -126,14 +168,14 @@ const visibleCustomGroups = computed(() =>
 		<div class="flex items-center gap-2">
 			<!-- page-icon-group -->
 			<button
-				v-for="(icon, i) in state.icons"
+				v-for="(icon, i) in actionIcons"
 				:key="`icon-${i}`"
 				type="button"
 				:title="icon.tooltip"
 				class="flex items-center justify-center rounded p-1.5 text-ink-gray-7 hover:bg-surface-gray-2"
 				@click="icon.onClick?.()"
 			>
-				<FeatherIcon :name="icon.icon" class="h-4 w-4" />
+				<Icon v-if="icon.lucide" :name="icon.lucide" class="h-4 w-4" />
 			</button>
 
 			<!-- custom-actions / inner toolbar -->
