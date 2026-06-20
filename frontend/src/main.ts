@@ -109,7 +109,14 @@ async function initFrappe() {
 
     await appendIcons(values.app_include_icons)
     await appendScripts(values.app_include_js)
-    let cssFiles = [frappe.boot.assets_json['newdesk.bundle.css']]
+    let cssFiles = [
+        frappe.boot.assets_json['newdesk.bundle.css'],
+        // Base datatable / tree-grid CSS lives only in report.bundle.css (the
+        // newdesk bundle carries just Frappe's overrides). The old desk loads
+        // both via app_include_css; mirror that here so report/list datatables
+        // get their structural styles.
+        frappe.boot.assets_json['report.bundle.css'],
+    ]
     appendStyles(cssFiles)
     if (window.system_timezone) setConfig('systemTimezone', window.system_timezone)
     frappe.toast = toast
