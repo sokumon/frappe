@@ -25,7 +25,8 @@
 @import "~bootstrap/scss/list-group";
 @import "~bootstrap/scss/close";
 @import "~bootstrap/scss/toasts";
-@import "~bootstrap/scss/tooltip";
+// tooltip is hoisted to the global scope in new_index.scss (it attaches to
+// <body>, outside the @scope roots). Importing it here too would be dead CSS.
 @import "~bootstrap/scss/popover";
 @import "~bootstrap/scss/carousel";
 @import "~bootstrap/scss/spinners";

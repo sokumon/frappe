@@ -7,6 +7,11 @@
 @import "~bootstrap/scss/modal";
 @import "../common/modal";
 
+// Bootstrap tooltips attach to <body> (container defaults to false ->
+// document.body), so like modals they live outside the .old-desk-view/.modal
+// scope roots. Keep this global, not inside @scope, or tooltips render unstyled.
+@import "~bootstrap/scss/tooltip";
+
 @scope (.old-desk-view, .modal) to (.tw) {
 	// The desk's base typography is set on `html`/`body` — by Bootstrap's reboot
 	// (imported via bootstrap-components below), by common/global.scss and by
