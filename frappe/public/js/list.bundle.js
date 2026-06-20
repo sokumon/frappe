@@ -20,6 +20,7 @@ import "./frappe/db.js";
 import "./frappe/model/meta.js";
 import "./frappe/model/sync.js";
 import "./frappe/model/create_new.js";
+import "./frappe/utils/datatable.js";
 
 import "./frappe/model/perm.js";
 import "./frappe/model/workflow.js";

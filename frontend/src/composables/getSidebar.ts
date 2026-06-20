@@ -305,7 +305,9 @@ function resolveSidebarName(route: string[], module?: string): string | null {
   if (sidebars.length === 1) return sidebars[0]
   if (sidebars.length > 1) {
     const workspaceSidebar = getWorkspaceForModule(module)
-    return sidebars.includes(workspaceSidebar) ? workspaceSidebar : module ?? null
+    // Prefer the module's own workspace; otherwise keep a linking sidebar rather
+    // than dropping to null (legacy falls back to the first candidate here).
+    return sidebars.includes(workspaceSidebar) ? workspaceSidebar : sidebars[0]
   }
   if (module) return resolveModuleSidebar(module)
   return null
@@ -394,6 +396,21 @@ function resolveForCurrentRoute(module?: string) {
   if (doctype && module === undefined && !frappe?.get_meta?.(doctype)) {
     frappe?.model?.with_doctype?.(doctype, () => resolveForCurrentRoute())
     return
+  }
+
+  // Query reports aren't doctype routes, so their module can't come from route
+  // meta or get_meta (route[1] is a Report name, not a DocType). Without a module
+  // a report that isn't directly linked in any sidebar resolves to nothing and
+  // leaves the sidebar empty. Pull the module off the Report doc (loading it if
+  // it isn't local yet) so the module-based fallback in resolveSidebarName runs.
+  if (route[0] === 'query-report' && module === undefined && route[1]) {
+    const reportName = route[1]
+    const reportDoc = frappe?.get_doc?.('Report', reportName)
+    if (!reportDoc) {
+      frappe?.model?.with_doc?.('Report', reportName, () => resolveForCurrentRoute())
+      return
+    }
+    module = reportDoc.module || frappe?.get_meta?.(reportDoc.ref_doctype)?.module || undefined
   }
 
   const name = resolveSidebarName(route, module ?? moduleForRoute(route))
