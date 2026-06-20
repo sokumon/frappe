@@ -125,6 +125,27 @@ frappe.dom = {
 	// root makes proximity tie, so source order decides again — and page CSS is
 	// injected after the bundle, so it wins, exactly as before @scope existed.
 	//
+	// Two transforms are applied before wrapping, because native CSS and @scope don't
+	// mix the way authored page CSS expects:
+	//
+	// 1. FLATTEN native nesting (`&`). Inside an @scope body the nesting selector `&`
+	//    resolves to `:where(:scope)` (the scope root, at ZERO specificity), NOT to the
+	//    parent rule's selector. So `.desktop-modal { & .modal-dialog { … } }` would
+	//    degrade from `.desktop-modal .modal-dialog` (0,2,0) to roughly
+	//    `:where(:scope) .modal-dialog` (0,1,0). Resolving `&` to explicit ancestor
+	//    selectors up front removes every `&`, preserving meaning and specificity.
+	//
+	// 2. Make selectors ROOT-INCLUSIVE. Inside @scope a selector only matches elements
+	//    *below* the scope root — the scope root element itself is matchable solely via
+	//    `:scope`, never by a class/tag selector that happens to match it. Bootstrap
+	//    appends modals to <body>, so the modal element IS the `.modal` scope root; a
+	//    page rule like `.desktop-modal .modal-dialog .modal-content { … }` (whose lead
+	//    compound `.desktop-modal` targets that root) therefore matches NOTHING. For
+	//    every selector we additionally emit a `:scope`-merged variant
+	//    (`:scope.desktop-modal .modal-dialog .modal-content`) so root-targeting rules
+	//    apply; the variant is harmless for descendant-targeting rules (it just won't
+	//    match anything). Verified against Chrome's @scope implementation.
+	//
 	// Caveat handled here: top-level "global" rules can't live inside @scope, because
 	// the scope roots (.old-desk-view / .modal) are descendants of <html>. Rules
 	// targeting :root / html / body / [data-theme], and name-defining or blockless
@@ -133,13 +154,136 @@ frappe.dom = {
 	// recursively so their inner rules get the same treatment.
 	scope_page_css: function (css) {
 		if (!css || !css.trim()) return css;
-		const { globals, scopable } = frappe.dom._split_scopable_css(css);
+		const flat = frappe.dom._flatten_nesting(css);
+		const { globals, scopable } = frappe.dom._split_scopable_css(flat);
 		let out = globals;
 		if (scopable.trim()) {
+			const rooted = frappe.dom._make_root_inclusive(scopable);
 			out +=
-				(out ? "\n\n" : "") + `@scope (.old-desk-view, .modal) to (.tw) {\n${scopable}\n}`;
+				(out ? "\n\n" : "") + `@scope (.old-desk-view, .modal) to (.tw) {\n${rooted}\n}`;
 		}
 		return out;
+	},
+	// Resolve native CSS nesting into flat top-level rules, so no `&` (or implicit
+	// descendant nesting) survives to be reinterpreted by the @scope wrapper above.
+	// Each nested rule's selector is combined with its parent(s): `&` is replaced by
+	// the parent selector, and a nested selector without `&` is prefixed as a
+	// descendant. @media/@supports/@container groups are preserved around their
+	// (flattened) contents; other at-rules (@keyframes, @font-face, …) pass through.
+	_flatten_nesting: function (css) {
+		const result = [];
+		const walk = (body, parents) => {
+			const nodes = frappe.dom._parse_css_nodes(body);
+			const decls = nodes.filter((n) => n.body === null);
+			// A rule's own declarations come before its nested rules, matching source.
+			if (decls.length) {
+				const block = decls.map((n) => n.raw).join("\n");
+				result.push(
+					parents && parents.length ? `${parents.join(",\n")} {\n${block}\n}` : block
+				);
+			}
+			for (const node of nodes) {
+				if (node.body === null) continue;
+				if (node.is_at && /^@(media|supports|container)\b/i.test(node.prelude)) {
+					const start = result.length;
+					walk(node.body, parents);
+					const inner = result.splice(start);
+					result.push(`${node.prelude} {\n${inner.join("\n")}\n}`);
+				} else if (node.is_at) {
+					result.push(node.raw);
+				} else {
+					walk(node.body, frappe.dom._combine_selectors(parents, node.prelude));
+				}
+			}
+		};
+		walk(css, null);
+		return result.join("\n");
+	},
+	// Combine a parent selector list with a (possibly comma-separated) child selector
+	// list: substitute `&` with each parent, or prefix as a descendant when `&` is
+	// absent. At the top level (no parents) the child selectors pass through unchanged.
+	_combine_selectors: function (parents, prelude) {
+		const children = frappe.dom._split_selector_list(prelude);
+		if (!parents || !parents.length) return children;
+		const out = [];
+		for (const parent of parents) {
+			for (const child of children) {
+				out.push(
+					child.indexOf("&") !== -1 ? child.replace(/&/g, parent) : `${parent} ${child}`
+				);
+			}
+		}
+		return out;
+	},
+	// Split a selector list on top-level commas only (ignoring commas inside () or []).
+	_split_selector_list: function (sel) {
+		const parts = [];
+		let depth = 0;
+		let cur = "";
+		for (const ch of sel) {
+			if (ch === "(" || ch === "[") depth++;
+			else if (ch === ")" || ch === "]") depth--;
+			if (ch === "," && depth === 0) {
+				if (cur.trim()) parts.push(cur.trim());
+				cur = "";
+			} else {
+				cur += ch;
+			}
+		}
+		if (cur.trim()) parts.push(cur.trim());
+		return parts;
+	},
+	// Rewrite each style rule's selector list so it also matches the scope root (see
+	// transform #2 in scope_page_css). Recurses through @media/@supports/@container;
+	// leaves at-rules and declarations untouched. Expects nesting already flattened.
+	_make_root_inclusive: function (css) {
+		const out = [];
+		for (const node of frappe.dom._parse_css_nodes(css)) {
+			if (node.body === null) {
+				out.push(node.raw);
+			} else if (node.is_at && /^@(media|supports|container)\b/i.test(node.prelude)) {
+				out.push(`${node.prelude} {\n${frappe.dom._make_root_inclusive(node.body)}\n}`);
+			} else if (node.is_at) {
+				out.push(node.raw);
+			} else {
+				const selectors = frappe.dom
+					._split_selector_list(node.prelude)
+					.map((s) => frappe.dom._root_inclusive_selector(s))
+					.join(",\n");
+				out.push(`${selectors} {\n${node.body}\n}`);
+			}
+		}
+		return out.join("\n");
+	},
+	// Given one complex selector, return it plus a `:scope`-merged variant whose lead
+	// compound is anchored to the scope root, e.g.
+	// `.desktop-modal .modal-dialog` → `.desktop-modal .modal-dialog, :scope.desktop-modal .modal-dialog`.
+	// Selectors that already reference :scope, or start with a combinator or universal
+	// `*` (nothing sensible to merge onto), are returned unchanged.
+	_root_inclusive_selector: function (sel) {
+		sel = sel.trim();
+		if (!sel || /:scope\b/.test(sel) || /^[>+~]/.test(sel)) return sel;
+		const { lead, rest } = frappe.dom._split_leading_compound(sel);
+		if (!lead || lead[0] === "*") return sel;
+		return `${sel}, :scope${lead}${rest}`;
+	},
+	// Split a complex selector into its leading compound and the remainder (starting at
+	// the first top-level combinator — descendant space, >, + or ~). Combinators inside
+	// () or [] are ignored.
+	_split_leading_compound: function (sel) {
+		let depth = 0;
+		for (let i = 0; i < sel.length; i++) {
+			const c = sel[i];
+			if (c === "(" || c === "[") depth++;
+			else if (c === ")" || c === "]") depth--;
+			else if (
+				depth === 0 &&
+				(c === " " || c === "\t" || c === "\n" || c === ">" || c === "+" || c === "~")
+			) {
+				return { lead: sel.slice(0, i), rest: sel.slice(i) };
+			}
+		}
+		return { lead: sel, rest: "" };
 	},
 	_split_scopable_css: function (css) {
 		const globals = [];
