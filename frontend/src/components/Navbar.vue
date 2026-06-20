@@ -5,7 +5,6 @@
 // add_inner_button calls). PageShell always mounts exactly one Navbar.
 import { computed } from 'vue'
 import { Badge, Breadcrumbs, Button, Dropdown } from 'frappe-ui'
-import { Icon } from 'frappe-ui/icons'
 import type { PageInnerButton, PageState } from '@/page/types'
 import { usePage } from '@/page/usePage'
 import { useBreadcrumbs } from '@/composables/getBreadcrumbs'
@@ -59,10 +58,21 @@ function toLucideIconLeft(iconStr?: string): string | undefined {
 
 const titleLucide = computed(() => toLucideIcon(props.state.titleIcon))
 
-// Action icons (add_action_icon) paired with their resolved lucide name.
-const actionIcons = computed(() =>
-	props.state.icons.map((icon) => ({ ...icon, lucide: toLucideIcon(icon.icon) }))
-)
+// Directive that adopts a pre-built DOM element into the Vue-managed tree.
+// add_action_icon creates a real <button> so legacy callers can jQuery-append
+// it elsewhere; this directive slots it in when it stays in the Navbar.
+// If a caller moves the button to another DOM node, parentNode is non-null
+// and we leave it there on subsequent updates.
+const vDomSlot = {
+	mounted(el: HTMLElement, { value }: { value?: HTMLElement }) {
+		if (value) el.appendChild(value)
+	},
+	updated(el: HTMLElement, { value, oldValue }: { value?: HTMLElement; oldValue?: HTMLElement }) {
+		if (value === oldValue) return
+		if (oldValue?.parentNode === el) el.removeChild(oldValue)
+		if (value && !value.parentNode) el.appendChild(value)
+	},
+}
 
 // The owning page (always present — Navbar only renders inside a PageShell).
 // Used to fire the actions-menu-show hook legacy code registers.
@@ -178,17 +188,10 @@ const visibleCustomGroups = computed(() =>
 
 		<!-- action region -->
 		<div class="flex items-center gap-2">
-			<!-- page-icon-group -->
-			<button
-				v-for="(icon, i) in actionIcons"
-				:key="`icon-${i}`"
-				type="button"
-				:title="icon.tooltip"
-				class="flex items-center justify-center rounded p-1.5 text-ink-gray-7 hover:bg-surface-gray-2"
-				@click="icon.onClick?.()"
-			>
-				<Icon v-if="icon.lucide" :name="icon.lucide" class="h-4 w-4" />
-			</button>
+			<!-- page-icon-group: each slot adopts the real <button> created by
+			     add_action_icon; callers that jQuery-append the button elsewhere
+			     leave the span empty without conflicting with Vue. -->
+			<span v-for="(icon, i) in state.icons" :key="`icon-${i}`" v-dom-slot="icon.el" />
 
 			<!-- custom-actions / inner toolbar -->
 			<template v-for="(entry, i) in innerToolbar" :key="`inner-${i}`">
@@ -243,6 +246,7 @@ const visibleCustomGroups = computed(() =>
 			<!-- secondary / primary -->
 			<Button
 				v-if="state.secondaryAction && state.secondaryAction.visible"
+				:ref="(el: any) => { state.refs.secondaryBtn = el?.$el ?? null }"
 				:disabled="state.secondaryAction.disabled"
 				:class="state.secondaryAction.extraClass"
 				v-on="eventBindings(state.secondaryAction.listeners)"

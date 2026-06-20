@@ -90,6 +90,7 @@ export interface PageIcon {
 	icon: string
 	onClick?: (...args: any[]) => any
 	tooltip?: string
+	el?: HTMLElement
 }
 
 export interface PageState {
@@ -125,6 +126,7 @@ export interface PageState {
 		footer: HTMLElement | null
 		pageForm: HTMLElement | null
 		filters: HTMLElement | null
+		secondaryBtn: HTMLElement | null
 	}
 }
 

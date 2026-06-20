@@ -292,6 +292,7 @@ export function createPage(opts: PageOptions = {}): Page {
 			footer: null,
 			pageForm: null,
 			filters: null,
+			secondaryBtn: null,
 		},
 	})
 
@@ -305,10 +306,10 @@ export function createPage(opts: PageOptions = {}): Page {
 
 		// --- DOM element refs (page.js setup_page) ----------------------------
 		// Real layout nodes, wrapped in jQuery for legacy `.append()`/`.find()`
-		// chains. Populated by PageShell on mount. The chrome action bits
-		// (buttons / menu / indicator / icon group) are rendered reactively from
-		// `state` and driven via the methods below — they are intentionally NOT
-		// exposed here as raw nodes.
+		// chains. Populated by PageShell on mount. Most chrome action bits
+		// (menu, indicator) are driven via reactive methods below; btn_secondary
+		// is the exception — its DOM ref is tracked by Navbar for callers that
+		// need the real element (workflow.js, query_report.js).
 		get wrapper() {
 			return $wrap(state.refs.wrapper, page)
 		},
@@ -349,6 +350,14 @@ export function createPage(opts: PageOptions = {}): Page {
 		},
 		get filters() {
 			return $wrap(state.refs.filters, page)
+		},
+		// page.js: this.btn_secondary = this.page_actions.find(".btn-secondary").
+		// Navbar tracks the real <button> element via a :ref callback and stores
+		// it in state.refs.secondaryBtn so this getter always returns the live
+		// node. Returns an empty jQuery set (safe no-op) when the button is
+		// unmounted (secondaryAction is null / visible is false).
+		get btn_secondary() {
+			return $wrap(state.refs.secondaryBtn, page)
 		},
 
 		// --- title / indicator -------------------------------------------------
@@ -588,8 +597,30 @@ export function createPage(opts: PageOptions = {}): Page {
 		},
 
 		// --- icons -------------------------------------------------------------
+		// Returns a real jQuery-wrapped <button> so legacy callers can chain
+		// .css()/.addClass() and jQuery-append the node to another container
+		// (e.g. toolbar.js moves edit_icon into the title element). The button
+		// references the same Lucide sprite used by the Vue <Icon> component so
+		// it renders identically whether it stays in the Navbar or is moved.
 		add_action_icon(icon: string, click?: (...args: any[]) => any, tooltip?: string) {
-			return ret(push(state.icons, reactive({ icon, onClick: click, tooltip })))
+
+			const button = document.createElement('button')
+			button.type = 'button'
+			button.className =
+				'flex items-center justify-center rounded p-1.5 text-ink-gray-7 hover:bg-surface-gray-2'
+			if (tooltip) button.title = tooltip
+			if (click) button.addEventListener('click', click)
+
+			const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+			svg.setAttribute('class', 'h-4 w-4')
+			svg.setAttribute('aria-hidden', 'true')
+			const use = document.createElementNS('http://www.w3.org/2000/svg', 'use')
+			use.setAttribute('href', `#${icon}`)
+			svg.appendChild(use)
+			button.appendChild(svg)
+
+			push(state.icons, reactive({ icon, onClick: click, tooltip, el: button }))
+			return $wrap(button, page)
 		},
 		// page.js: icon_group.addClass("hide").empty() — emptying the reactive
 		// list hides the (v-if'd) group, so no separate "hide" flag is needed.
