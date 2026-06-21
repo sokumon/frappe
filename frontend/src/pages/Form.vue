@@ -14,6 +14,7 @@ import Leads from '~icons/lucide/users'
 import { Sidebar, Button, Dropdown } from 'frappe-ui'
 import { Breadcrumbs, Badge } from 'frappe-ui'
 import OldDeskView from '@/components/OldDeskView.vue'
+import FormSidebar from '@/components/FormSidebar.vue'
 import LucideHouse from '~icons/lucide/house'
 import LucideView from '~icons/lucide/user-star'
 import { useTemplateRef, onMounted, onUnmounted, onSetup, watch } from 'vue'
@@ -87,7 +88,7 @@ const crmSidebar = reactive({
 })
 // import { useWorkspaceSidebar } from '@/composables/getSidebar';
 const formcontainer = useTemplateRef('form-view-container')
-let form: any
+const form = ref<any>(null)
 let is_dirty
 
 onMounted(async () => {
@@ -127,14 +128,14 @@ onMounted(async () => {
 				console.log(name, callback)
 			},
 		}
-		form = new frappe.ui.form.Form(doctype, formcontainer.value.el, true)
+		form.value = new frappe.ui.form.Form(doctype, formcontainer.value.el, true)
 
 		// }
 		frappe.model.with_doc(doctype, props.name, (name, r) => {
 			if (r && r['403']) return // not permitted
 			let doc = frappe.get_doc(doctype, props.name)
 			let indicator = frappe.get_indicator(doc)
-			form.refresh(props.name)
+			form.value.refresh(props.name)
 			if (indicator && indicator.length) {
 				theme.value = indicator[1]
 				badgeContent.value = indicator[0]
@@ -143,8 +144,7 @@ onMounted(async () => {
 				const currRoute = router.query.view
 				return currRoute
 			})
-			console.log(form.$wrapper)
-			form.$wrapper.on('dirty', function () {
+			form.value.$wrapper.on('dirty', function () {
 				// Show badge as dirty
 				badgeContent.value = 'Not Saved'
 				theme.value = 'orange'
@@ -153,7 +153,7 @@ onMounted(async () => {
 	})
 })
 function save() {
-	form.save('Save')
+	form.value.save('Save')
 }
 
 import { Avatar } from 'frappe-ui'
@@ -202,10 +202,12 @@ const doctype =
 				<Button variant="solid" @click="save"> Save</Button>
 			</div>
 		</nav>
-		<OldDeskView
-			ref="form-view-container"
-			class="form-view-container w-full h-full flex flex-col"
-		/>
-		<div class="form-sidebar flex"></div>
+		<div class="flex flex-1 overflow-hidden">
+			<OldDeskView
+				ref="form-view-container"
+				class="form-view-container flex flex-col flex-1 min-w-0"
+			/>
+			<FormSidebar v-if="form" :frm="form" />
+		</div>
 	</div>
 </template>

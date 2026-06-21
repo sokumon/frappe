@@ -18,6 +18,7 @@ async function appendScripts(scripts) {
         script.includes("vue_shell") || 
         script.includes("controls") ||
         script.includes("erpnext") || 
+        script.includes("india_compliance") || 
         script.includes("report")
     )
     let counter = 0;
