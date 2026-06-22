@@ -58,26 +58,6 @@ function toLucideIconLeft(iconStr?: string): string | undefined {
 
 const titleLucide = computed(() => toLucideIcon(props.state.titleIcon))
 
-// Directive that adopts a pre-built DOM element into the Vue-managed tree.
-// add_action_icon creates a real <button> so legacy callers can jQuery-append
-// it elsewhere; this directive slots it in when it stays in the Navbar.
-// If a caller moves the button to another DOM node, parentNode is non-null
-// and we leave it there on subsequent updates.
-const vDomSlot = {
-	mounted(el: HTMLElement, { value }: { value?: HTMLElement }) {
-		// Only adopt the button if a caller hasn't already relocated it (e.g. the
-		// form sidebar moves the print / edit-title icons into .form-print /
-		// .form-title-edit). Without this guard we'd steal those back into the
-		// navbar, leaving the sidebar placeholders empty.
-		if (value && !value.parentNode) el.appendChild(value)
-	},
-	updated(el: HTMLElement, { value, oldValue }: { value?: HTMLElement; oldValue?: HTMLElement }) {
-		if (value === oldValue) return
-		if (oldValue?.parentNode === el) el.removeChild(oldValue)
-		if (value && !value.parentNode) el.appendChild(value)
-	},
-}
-
 // The owning page (always present — Navbar only renders inside a PageShell).
 // Used to fire the actions-menu-show hook legacy code registers.
 const page = usePage()
@@ -178,6 +158,12 @@ const visibleActionItems = computed(() =>
 const visibleCustomGroups = computed(() =>
 	props.state.customGroups.filter((g) => g.visible && g.items.length)
 )
+
+// add_action_icon() icons that still belong in the navbar — i.e. those a caller
+// hasn't relocated elsewhere (the form sidebar moves print / edit-title into its
+// own DOM, giving their `el` a parentNode). Rendered as subtle frappe-ui buttons
+// from the icon data; the raw `el` exists only for callers that relocate it.
+const navbarIcons = computed(() => props.state.icons.filter((ic: any) => !ic.el?.parentNode))
 </script>
 
 <template>
@@ -213,10 +199,17 @@ const visibleCustomGroups = computed(() =>
 
 		<!-- action region -->
 		<div class="flex items-center gap-2">
-			<!-- page-icon-group: each slot adopts the real <button> created by
-			     add_action_icon; callers that jQuery-append the button elsewhere
-			     leave the span empty without conflicting with Vue. -->
-			<span v-for="(icon, i) in state.icons" :key="`icon-${i}`" v-dom-slot="icon.el" />
+			<!-- page-icon-group: add_action_icon() icons, rendered as subtle buttons
+			     from the icon data. Icons a caller relocated (e.g. the form sidebar's
+			     print / edit-title) are filtered out so they don't double-render. -->
+			<Button
+				v-for="(icon, i) in navbarIcons"
+				:key="`icon-${i}`"
+				variant="subtle"
+				:icon="toLucideIconLeft(icon.icon)"
+				:title="icon.tooltip"
+				@click="icon.onClick?.()"
+			/>
 
 			<!-- custom-actions / inner toolbar -->
 			<template v-for="(entry, i) in innerToolbar" :key="`inner-${i}`">
