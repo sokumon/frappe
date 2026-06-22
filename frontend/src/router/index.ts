@@ -4,6 +4,7 @@ import { APP_PREFIX } from "@/config"
 import routes from "./routes"
 import { gate } from "./guards"
 import { installCompat, syncCompatState } from "./compat"
+import { installLinkInterceptor } from "./linkInterceptor"
 
 // ---------------------------------------------------------------------------
 // query codec
@@ -61,5 +62,9 @@ router.afterEach((to, _from, failure) => {
 
 // install frappe.set_route / get_route / route_options / emitter shims
 installCompat(router)
+
+// capture plain <a href="/newdesk/…"> clicks and route them in-app (legacy
+// equivalent of the body click handler in the desk router.js)
+installLinkInterceptor(router)
 
 export default router
