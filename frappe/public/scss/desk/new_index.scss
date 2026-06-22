@@ -38,6 +38,16 @@
 	// dim comes from `.modal-backdrop`, the panel bg from `.modal-content`).
 	:scope.old-desk-view {
 		background-color: var(--bg-color);
+		// `.main-section` (main.scss) styles the old full-page layout: `height:
+		// 100vh`, `overflow-y: visible`, `scrollbar-gutter: stable`. OldDeskView
+		// carries that class but in the new shell it's a flex child sitting below
+		// the navbar — `100vh` overflows by the navbar height (a persistent
+		// scrollbar the legacy desk never shows) and the gutter reserves a blank
+		// strip. Neutralise them so flex-1 sizes it and the inner `main.layout-main`
+		// is the sole, exactly-fitted scroller.
+		height: auto;
+		overflow: hidden;
+		scrollbar-gutter: auto;
 	}
 	@import "bootstrap-components";
 	@import "../common/mixins.scss";
@@ -94,4 +104,28 @@
 	@import "menu";
 	@import "sidebar_header";
 	@import "sidebar_card";
+
+	// `.form-tabs-list` is `position: sticky` (form.scss) but its `top` is normally
+	// set by layout.js's scroll handler via `.form-tabs-sticky-*`. In the new shell
+	// that handler is bound to `.main-section`, which no longer scrolls (the single
+	// scroller is `main.layout-main`), so it never fires. The scroller already
+	// starts just below the navbar, so pin the tabs to its top edge. z-index keeps
+	// them above the fields they overlap (the strip has a `--card-bg` background).
+	.form-tabs-list {
+		top: 0;
+		z-index: 2;
+	}
+
+	// The form scrolls inside `main.layout-main`, whose right edge coincides with
+	// the `.form-page` card boundary — so its scrollbar sits right on that edge.
+	// The legacy desk scrolled the document (bar at the window's far right), so
+	// nothing showed at the card. Match that with overlay scrolling (no visible
+	// bar) for the form's scroll area only; `:has(.std-form-layout)` keeps
+	// list/report scrollbars untouched.
+	.layout-main:has(.std-form-layout) {
+		scrollbar-width: none; // Firefox
+		&::-webkit-scrollbar {
+			display: none; // Chrome, Safari, Edge
+		}
+	}
 }
