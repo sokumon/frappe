@@ -21,6 +21,6 @@ const isPage = computed(() => !isDoctype.value && isAllowedPage(first.value))
 
 <template>
 	<Page v-if="isPage" :name="first" />
-	<Form v-else-if="isDoctype" :doctype="first" :name="name" />
+	<Form v-else-if="isDoctype" :key="first" :doctype="first" :name="name" />
 	<NotFound v-else />
 </template>

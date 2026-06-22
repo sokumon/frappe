@@ -6,6 +6,7 @@
 // Modal and backdrop are appended to <body>, outside .old-desk-view
 @import "~bootstrap/scss/modal";
 @import "../common/modal";
+@import "../common/datepicker";
 
 // Bootstrap tooltips attach to <body> (container defaults to false ->
 // document.body), so like modals they live outside the .old-desk-view/.modal

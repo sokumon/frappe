@@ -108,30 +108,44 @@ defineExpose({ page })
 				</template>
 			</Navbar>
 
-			<!-- page-body (page.html): page-wrapper > page-content holds the main
-				 section; legacy code queries .page-content / .layout-main. -->
-			<OldDeskView>
-				<div ref="pageBody" class="page-body flex flex-1 flex-col overflow-hidden">
-					<div class="page-toolbar hide" />
-					<div class="page-wrapper flex flex-1 flex-col overflow-hidden">
-						<div class="page-content flex flex-1 flex-col overflow-hidden">
-							<div class="workflow-button-area btn-group pull-right hide" />
-							<main ref="main" class="layout-main flex-1 overflow-auto">
-								<div class="layout-main-section-wrapper">
-									<div class="layout-main-section">
-										<div id="page-form" class="page-form row" ref="pageForm" />
-										<div id="filters" class="filters" ref="filters" />
-										<slot />
+			<!-- The body region: the main page-body plus an optional right-hand
+				 panel (`aside` slot, used by the form for its document sidebar). The
+				 flex row keeps the panel beside the scrolling body; with no `aside`
+				 slot it collapses to just the body, identical to before. -->
+			<div class="flex flex-1 overflow-hidden">
+				<!-- page-body (page.html): page-wrapper > page-content holds the main
+					 section; legacy code queries .page-content / .layout-main. -->
+				<OldDeskView>
+					<div ref="pageBody" class="page-body flex flex-1 flex-col overflow-hidden">
+						<div class="page-toolbar hide" />
+						<div class="page-wrapper flex flex-1 flex-col overflow-hidden">
+							<div class="page-content flex flex-1 flex-col overflow-hidden">
+								<div class="workflow-button-area btn-group pull-right hide" />
+								<main ref="main" class="layout-main flex-1 overflow-auto">
+									<div class="layout-main-section-wrapper">
+										<div class="layout-main-section">
+											<!-- Both start hidden (legacy page.js creates page_form
+												 with `hide`); the bridge's show_form()/add_field
+												 reveal them when a field is added. -->
+											<div
+												id="page-form"
+												class="page-form row hide"
+												ref="pageForm"
+											/>
+											<div id="filters" class="filters hide" ref="filters" />
+											<slot />
+										</div>
 									</div>
-								</div>
-							</main>
-							<Footer ref="footer">
-								<slot name="footer" />
-							</Footer>
+								</main>
+								<Footer ref="footer">
+									<slot name="footer" />
+								</Footer>
+							</div>
 						</div>
 					</div>
-				</div>
-			</OldDeskView>
+				</OldDeskView>
+				<slot name="aside" />
+			</div>
 		</div>
 	</div>
 </template>

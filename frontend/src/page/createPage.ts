@@ -714,7 +714,12 @@ export function createPage(opts: PageOptions = {}): Page {
 				.attr('title', translate(df.label, null, df.parent))
 				.tooltip?.({ delay: { show: 600, hide: 100 }, trigger: 'hover' })
 
-			if (parentNode === state.refs.filters) this.restyle_field?.(f)
+			if (parentNode === state.refs.filters) {
+				// The filters bar starts hidden (empty); reveal it once it holds a
+				// field, mirroring show_form() for page_form.
+				$wrap(state.refs.filters, page).removeClass?.('hide')
+				this.restyle_field?.(f)
+			}
 
 			// HTML fields in the toolbar are display-only.
 			if (df.fieldtype === 'HTML') return

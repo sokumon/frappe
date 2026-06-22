@@ -90,30 +90,17 @@ frappe.ui.form.Form = class FrappeForm {
 
 		let is_single_column = this.doctype === "DocType" ? true : this.meta.hide_toolbar;
 
-		if (!frappe.vue_shell) {
-			frappe.ui.make_app_page({
-				parent: this.wrapper,
-				single_column: is_single_column,
-				sidebar_position: "Right",
-			});
-			this.page = this.wrapper.page;
-			this.layout_main = this.page.main.get(0);
-		} else {
-			this.page = this.wrapper;
-			Object.assign(this.page, this.page_api);
-			this.layout_main = $(this.page).get(0);
-		}
+		frappe.ui.make_app_page({
+			parent: this.wrapper,
+			single_column: is_single_column,
+			sidebar_position: "Right",
+		});
+		this.page = this.wrapper.page;
+		this.layout_main = this.page.main.get(0);
 
 		this.$wrapper.on("hide", () => {
 			this.script_manager.trigger("on_hide");
 		});
-
-		if (!frappe.vue_shell) {
-			this.toolbar = new frappe.ui.form.Toolbar({
-				frm: this,
-				page: this.page,
-			});
-		}
 
 		this.viewers = new frappe.ui.form.FormViewers({
 			frm: this,
@@ -138,17 +125,9 @@ frappe.ui.form.Form = class FrappeForm {
 			// 	label: __("Activity"),
 			// 	fieldname: 'timeline'
 			// });
-			// To append the footer correctly if in vue shell or in desk
-			let appendto;
-			if (frappe.vue_shell) {
-				appendto = this.page;
-			} else {
-				appendto = this.page.main.parent();
-			}
-
 			this.footer = new frappe.ui.form.Footer({
 				frm: this,
-				parent: $("<div>").appendTo(appendto),
+				parent: $("<div>").appendTo(this.page.main.parent()),
 			});
 			$("body").attr("data-sidebar", 1);
 		}
@@ -611,8 +590,6 @@ frappe.ui.form.Form = class FrappeForm {
 			frappe.after_ajax(function () {
 				me.trigger_link_fields();
 			});
-			if (frappe.vue_shell) return;
-			frappe.breadcrumbs.add(me.meta.module, me.doctype);
 		});
 
 		// update seen
@@ -625,18 +602,6 @@ frappe.ui.form.Form = class FrappeForm {
 		if (!this.meta.istable) {
 			this.layout.doc = this.doc;
 			this.layout.attach_doc_and_docfields();
-			if (!frappe.vue_shell) {
-				if (frappe.boot.desk_settings.form_sidebar) {
-					this.sidebar = new frappe.ui.form.Sidebar({
-						frm: this,
-						page: this.page,
-						toolbar: this.toolbar,
-					});
-					this.sidebar.make();
-				} else {
-					this.page.sidebar.hide();
-				}
-			}
 
 			// clear layout message
 			this.layout.show_message();
@@ -659,7 +624,6 @@ frappe.ui.form.Form = class FrappeForm {
 				() => this.run_after_load_hook(),
 				() => this.dashboard.after_refresh(),
 				() => (this.cscript.is_onload = false),
-				() => this.configure_breadcrumb_width(),
 			]);
 		} else {
 			this.refresh_header(switched);
@@ -788,39 +752,6 @@ frappe.ui.form.Form = class FrappeForm {
 		this.setup_image_autocompletions_in_markdown();
 	}
 
-	configure_breadcrumb_width() {
-		if (frappe.vue_shell) return;
-		let el = this.page.page_actions[0];
-		const rect = el.getBoundingClientRect();
-		let is_outside = cint(rect.right) > cint(document.documentElement.clientWidth);
-
-		if (is_outside) {
-			// check if the default actions are outside of the screen
-			const overflow = Math.max(0, rect.right - document.documentElement.clientWidth);
-
-			if (!overflow) return;
-			let max_breadcrumb_width = Math.max(
-				290,
-				this.page.$title_area.find("ul").width() - overflow
-			);
-
-			this.page.$title_area.parent().css("max-width", `${max_breadcrumb_width}px`);
-			let breadcrumb = this.page.$title_area.find("ul li.ellipsis");
-
-			if (cint(breadcrumb[0]?.clientWidth) <= 30) {
-				// if workspce sodebar is not visible
-				$(breadcrumb[0]).hide();
-				if (cint(breadcrumb[1]?.clientWidth) <= 30) {
-					// if doctype sodebar is not visible
-					$(breadcrumb[1]).hide();
-
-					// add elipsis to the name/title breadcrumb
-					this.page.$title_area.find(".title-text-form").parent().addClass("ellipsis");
-				}
-			}
-		}
-	}
-
 	focus_on_first_input() {
 		const layout_wrapper = this.layout.wrapper;
 
@@ -910,40 +841,17 @@ frappe.ui.form.Form = class FrappeForm {
 		this.viewers.refresh();
 
 		this.dashboard.refresh();
-		if (!frappe.vue_shell) {
-			const _route_key = frappe.breadcrumbs.current_page();
-			const _crumb = frappe.breadcrumbs.all[_route_key];
-			if (_crumb) {
-				_crumb.layout_name = this.doctype_layout?.name || null;
-			}
-		}
 		// In the vue shell frappe.breadcrumbs is the reactive Vue port; refresh it
-		// here too so the form crumb picks up the loaded doc's title (the route-
-		// change update runs before with_doc resolves).
+		// here so the form crumb picks up the loaded doc's title (the route-change
+		// update runs before with_doc resolves).
 		frappe.breadcrumbs.update();
 
 		this.show_submit_message();
-		if (!frappe.vue_shell) {
-			this.clear_custom_buttons();
-		}
+		this.clear_custom_buttons();
 
 		this.show_web_link();
 		this.show_report_bug_link();
 		this.show_workflow_read_only_banner();
-	}
-
-	_update_layout_indicator() {
-		if (frappe.vue_shell) return;
-		this.page.wrapper.find(".layout-indicator").remove();
-		if (this.doctype_layout?.title) {
-			this.page.wrapper
-				.find(".title-area")
-				.append(
-					`<span class="layout-indicator indicator-pill ms-2">${frappe.utils.escape_html(
-						__(this.doctype_layout.title)
-					)}</span>`
-				);
-		}
 	}
 
 	// SAVE

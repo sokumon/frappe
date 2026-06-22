@@ -43,6 +43,7 @@ import "./frappe/defaults.js";
 import "./frappe/assets.js";
 import "./frappe/ui/sort_selector.js";
 import "./frappe/ui/listing.html";
+import "./frappe/upload.js";
 
 import "./frappe/model/indicator.js";
 import "./frappe/ui/filters/filter.js";

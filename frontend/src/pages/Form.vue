@@ -1,213 +1,140 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
-import Notifications from '~icons/lucide/bell'
-import Deals from '~icons/lucide/briefcase'
-import Organizations from '~icons/lucide/building'
-import Search from '~icons/lucide/search'
-import Tasks from '~icons/lucide/check-square'
-import Notes from '~icons/lucide/clipboard'
-import Link from '~icons/lucide/link'
-import EmailTemplates from '~icons/lucide/mail'
-import CallLogs from '~icons/lucide/phone'
-import Contacts from '~icons/lucide/user-check'
-import Leads from '~icons/lucide/users'
-import { Sidebar, Button, Dropdown } from 'frappe-ui'
-import { Breadcrumbs, Badge } from 'frappe-ui'
-import OldDeskView from '@/components/OldDeskView.vue'
+// Document form, rendered through PageShell.
+//
+// The form drives PageShell's bridge page: we hand `frappe.ui.form.Form` the
+// page-body node (which carries the bridge `.page`), so the legacy make_app_page
+// reuses the shell's page and the form renders into its `.layout-main-section`.
+// Custom buttons added by client scripts flow through the bridge
+// (frm.add_custom_button -> page.add_inner_button) to the Navbar. The form
+// Toolbar isn't created (the bridge doesn't back its desk-only chrome), so Save
+// and the status indicator are driven from here. The document sidebar is the Vue
+// `FormSidebar` in PageShell's `aside` slot (the right-hand panel).
+//
+// Loading mirrors the legacy `FormFactory` (formview.js): re-render fresh docs in
+// place, fetch stale/missing ones, create-and-reroute for `new` names, and follow
+// renames via frappe.model.new_names.
+import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
+import { Button } from 'frappe-ui'
+import PageShell from '@/components/PageShell.vue'
 import FormSidebar from '@/components/FormSidebar.vue'
-import LucideHouse from '~icons/lucide/house'
-import LucideView from '~icons/lucide/user-star'
-import { useTemplateRef, onMounted, onUnmounted, onSetup, watch } from 'vue'
-import Moon from '~icons/lucide/moon'
-import Settings from '~icons/lucide/settings'
-import User from '~icons/lucide/User'
-import router from '@/router'
-import registerCheck from '@/composables/check.js'
-import registerSelect from '@/composables/select.js'
-import registerDate from '@/composables/date.js'
-function toggleTheme() {
-	const currentTheme = document.documentElement.getAttribute('data-theme')
-	const newTheme = currentTheme === 'dark' ? 'light' : 'dark'
-	document.documentElement.setAttribute('data-theme', newTheme)
-}
-let currentSidebar = 'stock'
 
-let menu_items = [
-	{ label: 'Toggle Theme', icon: Moon, onClick: toggleTheme },
-	{
-		label: 'Help',
-		to: '/help',
-		icon: Settings,
-		onClick: () => {
-			alert('Help clicked!')
-		},
-	},
-	{
-		label: 'Logout',
-		to: '/logout',
-		icon: User,
-		onClick: () => alert('Logging out...'),
-	},
-]
-let standard_items = [
-	{ label: 'Notifications', icon: Notifications, to: '' },
-	{ label: 'Search', icon: Search, to: '' },
-]
+// route params: doctype (url slug) and document name
+const props = defineProps<{ doctype: string; name: string }>()
 
-let custom_buttons = ref({})
-const crmSidebar = reactive({
-	header: {
-		title: 'Stock',
-		subtitle: 'ERPNext',
-		logo: frappe.utils.get_desktop_icon('Stock', 'Solid'),
-		menuItems: menu_items,
-	},
-	sections: [
-		{
-			label: '',
-			items: standard_items,
-		},
-		{
-			label: '',
-			items: [
-				{ label: 'Leads', icon: Leads, to: '/leads' },
-				{ label: 'Deals', icon: Deals, to: '/deals' },
-				{ label: 'Contacts', icon: Contacts, to: '/contacts' },
-				{ label: 'Organizations', icon: Organizations, to: '/organizations' },
-				{ label: 'Notes', icon: Notes, to: '/notes' },
-				{ label: 'Tasks', icon: Tasks, to: '/tasks' },
-				{ label: 'Call Logs', icon: CallLogs, to: '/call-logs' },
-				{
-					label: 'Email Templates',
-					icon: EmailTemplates,
-					to: '/email-templates',
-				},
-			],
-		},
-	],
-})
-// import { useWorkspaceSidebar } from '@/composables/getSidebar';
-const formcontainer = useTemplateRef('form-view-container')
-const form = ref<any>(null)
-let is_dirty
-
-onMounted(async () => {
-	frappe.model.with_doctype(doctype, function () {
-		frappe.ui.form.Form.prototype.add_custom_button = function (label, callback, grp) {
-			if (!grp) {
-				custom_buttons.value[label] = []
-				custom_buttons.value[label].push({ label: label, onClick: callback })
-				return
-			}
-			if (custom_buttons.value[grp]) {
-				custom_buttons.value[grp].push({ label: label, onClick: callback })
-			} else {
-				custom_buttons.value[grp] = []
-				custom_buttons.value[grp].push({ label: label, onClick: callback })
-			}
-			frappe.custom_buttons = custom_buttons.value
-		}
-		frappe.ui.form.Form.prototype.page_api = {
-			set_title: function (title) {
-				document.title = title
-			},
-			add_button: function () {
-				console.log('add_button', arguments)
-			},
-		}
-		// frappe.ui.form.ControlCheck = check
-		// ;
-		let check = registerCheck()
-		frappe.ui.form.ControlCheck = check
-		let select = registerSelect()
-		frappe.ui.form.ControlSelect = select
-		let date = registerDate()
-		frappe.ui.form.ControlDate = date
-		frappe.ui.form.Form.prototype.script_manager = {
-			trigger: async function (name, callback) {
-				console.log(name, callback)
-			},
-		}
-		form.value = new frappe.ui.form.Form(doctype, formcontainer.value.el, true)
-
-		// }
-		frappe.model.with_doc(doctype, props.name, (name, r) => {
-			if (r && r['403']) return // not permitted
-			let doc = frappe.get_doc(doctype, props.name)
-			let indicator = frappe.get_indicator(doc)
-			form.value.refresh(props.name)
-			if (indicator && indicator.length) {
-				theme.value = indicator[1]
-				badgeContent.value = indicator[0]
-			}
-			const breadcrumbs = computed(() => {
-				const currRoute = router.query.view
-				return currRoute
-			})
-			form.value.$wrapper.on('dirty', function () {
-				// Show badge as dirty
-				badgeContent.value = 'Not Saved'
-				theme.value = 'orange'
-			})
-		})
-	})
-})
-function save() {
-	form.value.save('Save')
-}
-
-import { Avatar } from 'frappe-ui'
-let theme = ref('gray')
-let badgeContent = ref('status')
-
-// route params: doctype (url slug) and name (document name)
-const props = defineProps(['doctype', 'name'])
 // the url carries the slug ("sales-order"); the form needs the real doctype
 const doctype =
 	frappe.router.routes?.[props.doctype]?.doctype || frappe.router.unslug(props.doctype)
+
+const shell = useTemplateRef<InstanceType<typeof PageShell>>('shell')
+const form = ref<any>(null)
+
+const title = computed(() =>
+	props.name && !props.name.startsWith('new') ? props.name : frappe.unscrub(doctype)
+)
+
+function setIndicator(name: string) {
+	const page = shell.value?.page
+	const doc = frappe.get_doc(doctype, name)
+	const indicator = doc && frappe.get_indicator(doc)
+	if (indicator && indicator.length) page?.set_indicator(indicator[0], indicator[1])
+	else page?.clear_indicator()
+}
+
+let dirtyBound = false
+
+function renderDoc(name: string) {
+	form.value.refresh(name)
+	;(window as any).cur_frm = form.value
+
+	// $wrapper exists only after the first refresh runs setup(); reflect the dirty
+	// state in the navbar indicator (there's no Toolbar to do it). Bind once.
+	if (!dirtyBound) {
+		dirtyBound = true
+		form.value.$wrapper.on('dirty', () => {
+			shell.value?.page?.set_indicator('Not Saved', 'orange')
+		})
+	}
+
+	setIndicator(name)
+}
+
+// formview.js render_new_doc: build a fresh local doc and reroute to its name.
+function renderNewDoc(name: string) {
+	const newName = frappe.model.make_new_doc_and_get_name(doctype, true)
+	if (newName === name) {
+		renderDoc(name)
+	} else {
+		frappe.route_flags = frappe.route_flags || {}
+		frappe.route_flags.replace_route = true
+		frappe.set_route('Form', doctype, newName)
+	}
+}
+
+// formview.js show_doc / fetch_and_render: render in place when the doc is fresh,
+// otherwise fetch it (handling new docs, renames and 403s).
+function loadDoc(name: string) {
+	if (!form.value) return
+
+	if (frappe.model.new_names[name]) {
+		// document has been renamed, reroute
+		frappe.set_route('Form', doctype, frappe.model.new_names[name])
+		return
+	}
+
+	const doc = frappe.get_doc(doctype, name)
+	if (
+		doc &&
+		frappe.model.get_docinfo(doctype, name) &&
+		(doc.__islocal || frappe.model.is_fresh(doc))
+	) {
+		renderDoc(name)
+		return
+	}
+
+	frappe.model.with_doc(doctype, name, (_n: string, r: any) => {
+		if (r && r['403']) return // not permitted
+		if (!(window as any).locals?.[doctype]?.[name]) {
+			if (name && name.slice(0, 3) === 'new') renderNewDoc(name)
+			else frappe.show_not_found?.(name)
+			return
+		}
+		renderDoc(name)
+	})
+}
+
+function save() {
+	form.value?.save('Save')
+}
+
+onMounted(() => {
+	// page-body carries the bridge page; hand it to the form as its parent so
+	// make_app_page reuses this shell's page (layout_main = .layout-main-section).
+	const pageBody = shell.value?.page?.state.refs.pageBody
+	if (!pageBody) return
+
+	frappe.model.with_doctype(doctype, () => {
+		form.value = new frappe.ui.form.Form(doctype, pageBody, true, frappe.router.doctype_layout)
+		;(window as any).cur_frm = form.value
+		loadDoc(props.name)
+	})
+})
+
+// Doc-to-doc navigation within the same doctype keeps this component mounted
+// (FormOrPage keys the form by doctype), so re-load on name change.
+watch(
+	() => props.name,
+	(name) => loadDoc(name)
+)
 </script>
 
 <template>
-	<Sidebar :header="crmSidebar.header" :sections="crmSidebar.sections" />
-	<div class="flex-1 flex flex-col h-full overflow-auto">
-		<nav class="bg-surface-white border-b px-2 py-2.5 h-12 flex justify-between w-full">
-			<div class="flex items-center gap-2">
-				<Breadcrumbs
-					:items="[
-						{ icon: LucideHouse, route: { name: 'home' } },
-						{ label: 'Stock', route: '/stock' },
-						{
-							label: 'Item',
-							route: '/item',
-						},
-						{
-							label: 'SKU010',
-						},
-					]"
-				>
-					<template #prefix="{ item }">
-						<component :is="item.icon" class="size-4" />
-					</template>
-				</Breadcrumbs>
-				<Badge :theme="theme" size="lg"> {{ badgeContent }}</Badge>
-			</div>
-			<div class="flex gap-2">
-				<Dropdown
-					v-if="Object.keys(custom_buttons).length"
-					v-for="[name, actions] in Object.entries(custom_buttons)"
-					:options="actions"
-				>
-					<Button>{{ name }}</Button>
-				</Dropdown>
-				<Button variant="solid" @click="save"> Save</Button>
-			</div>
-		</nav>
-		<div class="flex flex-1 overflow-hidden">
-			<OldDeskView
-				ref="form-view-container"
-				class="form-view-container flex flex-col flex-1 min-w-0"
-			/>
+	<PageShell ref="shell" :title="title">
+		<template #navbar>
+			<Button class="primary-action" variant="solid" @click="save">Save</Button>
+		</template>
+
+		<template #aside>
 			<FormSidebar v-if="form" :frm="form" />
-		</div>
-	</div>
+		</template>
+	</PageShell>
 </template>
