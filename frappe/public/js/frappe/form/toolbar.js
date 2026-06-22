@@ -29,13 +29,18 @@ frappe.ui.form.Toolbar = class Toolbar {
 			if (this.frm.doc.__islocal) {
 				this.page.hide_menu();
 			} else {
-				const is_children_visible =
-					this.page.menu.children().filter(function () {
-						return (
-							$(this).css("display") !== "none" &&
-							!$(this).hasClass("dropdown-divider")
-						);
-					}).length > 0;
+				// `this.page.menu` is the legacy jQuery dropdown; the bridge has no
+				// such node (the Vue Navbar shows/hides the menu by item count on its
+				// own). Fall back to "visible" so show_menu() (a bridge no-op) runs and
+				// the Navbar decides.
+				const is_children_visible = this.page.menu
+					? this.page.menu.children().filter(function () {
+							return (
+								$(this).css("display") !== "none" &&
+								!$(this).hasClass("dropdown-divider")
+							);
+					  }).length > 0
+					: true;
 				if (is_children_visible) {
 					this.page.show_menu();
 				} else {

@@ -5,7 +5,7 @@
 // add_inner_button calls). PageShell always mounts exactly one Navbar.
 import { computed } from 'vue'
 import { Badge, Breadcrumbs, Button, Dropdown } from 'frappe-ui'
-import type { PageInnerButton, PageState } from '@/page/types'
+import type { PageInnerButton, PageMenuItem, PageState } from '@/page/types'
 import { usePage } from '@/page/usePage'
 import { useBreadcrumbs } from '@/composables/getBreadcrumbs'
 
@@ -65,7 +65,11 @@ const titleLucide = computed(() => toLucideIcon(props.state.titleIcon))
 // and we leave it there on subsequent updates.
 const vDomSlot = {
 	mounted(el: HTMLElement, { value }: { value?: HTMLElement }) {
-		if (value) el.appendChild(value)
+		// Only adopt the button if a caller hasn't already relocated it (e.g. the
+		// form sidebar moves the print / edit-title icons into .form-print /
+		// .form-title-edit). Without this guard we'd steal those back into the
+		// navbar, leaving the sidebar placeholders empty.
+		if (value && !value.parentNode) el.appendChild(value)
 	},
 	updated(el: HTMLElement, { value, oldValue }: { value?: HTMLElement; oldValue?: HTMLElement }) {
 		if (value === oldValue) return
@@ -126,6 +130,25 @@ function toOptions(items: { label: string; icon?: string; onClick: (...a: any[])
 	return items.map((i) => ({ label: i.label, icon: i.icon, onClick: i.onClick }))
 }
 
+// Build dropdown options split into frappe-ui groups at divider markers (page.js
+// add_divider). Consecutive groups are separated by the dropdown's `divide-y`, so
+// each divider renders as a section separator instead of a clickable item.
+function toMenuOptions(items: PageMenuItem[]) {
+	const groups: Array<{ group: string; hideLabel: true; items: ReturnType<typeof toOptions> }> =
+		[]
+	let current: PageMenuItem[] = []
+	const flush = () => {
+		if (current.length) groups.push({ group: '', hideLabel: true, items: toOptions(current) })
+		current = []
+	}
+	for (const item of items) {
+		if (item.divider) flush()
+		else current.push(item)
+	}
+	flush()
+	return groups
+}
+
 // Turn a button's reactive `listeners` bag ({ click: [fn], mouseenter: [fn] })
 // into a v-on object ({ onClick, onMouseenter }), so handlers registered via the
 // bridge's `.on(event, fn)` re-bind on every render. Each emits a fresh fan-out
@@ -141,6 +164,8 @@ function eventBindings(listeners?: Record<string, Array<(...a: any[]) => any>>) 
 }
 
 const visibleMenuItems = computed(() => props.state.menuItems.filter((i) => i.visible))
+// The ⋯ menu options, grouped at divider markers (empty when only dividers exist).
+const menuGroups = computed(() => toMenuOptions(visibleMenuItems.value))
 // The actions dropdown is hidden by default; show_actions_menu() flips
 // actionsMenuVisible (list view does this on row selection). Still require items
 // to exist so an empty menu never renders.
@@ -228,7 +253,7 @@ const visibleCustomGroups = computed(() =>
 			<slot name="navbar" />
 
 			<!-- menu-btn-group -->
-			<Dropdown v-if="visibleMenuItems.length" :options="toOptions(visibleMenuItems)">
+			<Dropdown v-if="menuGroups.length" :options="menuGroups">
 				<Button icon="lucide-more-horizontal" />
 			</Dropdown>
 

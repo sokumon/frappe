@@ -12,18 +12,30 @@ frappe.ui.form.Sidebar = class {
 	}
 
 	make() {
-		var sidebar_content = frappe.render_template("form_sidebar", {
-			doctype: this.frm.doctype,
-			frm: this.frm,
-			can_write:
-				frappe.model.can_write(this.frm.doctype, this.frm.docname) &&
-				!this.frm.fields_dict[this.frm.meta.image_field]?.df.read_only,
-			image_field: this.frm.meta.image_field ?? false,
-		});
+		// In the vue shell the sidebar chrome is rendered by FormSidebar.vue and
+		// already present in page.sidebar (the .layout-side-section). Reuse that
+		// markup — the template lives in Vue, this class only drives the dynamic
+		// widgets. Otherwise (classic desk) render the legacy template ourselves.
+		let existing = this.page.sidebar.find(".form-sidebar");
+		if (existing.length) {
+			this.is_vue = true;
+			this.sidebar = existing;
+		} else {
+			var sidebar_content = frappe.render_template("form_sidebar", {
+				doctype: this.frm.doctype,
+				frm: this.frm,
+				can_write:
+					frappe.model.can_write(this.frm.doctype, this.frm.docname) &&
+					!this.frm.fields_dict[this.frm.meta.image_field]?.df.read_only,
+				image_field: this.frm.meta.image_field ?? false,
+			});
 
-		this.sidebar = $('<div class="form-sidebar overlay-sidebar hidden-xs hidden-sm"></div>')
-			.html(sidebar_content)
-			.appendTo(this.page.sidebar.empty());
+			this.sidebar = $(
+				'<div class="form-sidebar overlay-sidebar hidden-xs hidden-sm"></div>'
+			)
+				.html(sidebar_content)
+				.appendTo(this.page.sidebar.empty());
+		}
 
 		this.user_actions = this.sidebar.find(".user-actions");
 		this.user_actions_list = this.sidebar.find(".user-actions-list");

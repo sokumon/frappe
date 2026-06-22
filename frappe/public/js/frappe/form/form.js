@@ -102,6 +102,16 @@ frappe.ui.form.Form = class FrappeForm {
 			this.script_manager.trigger("on_hide");
 		});
 
+		// The Toolbar drives the page chrome through the bridge: the ⋯ menu
+		// (add_menu_item), navigation icons (add_action_icon), the primary/secondary
+		// actions (set_primary_action) and the status indicator — all rendered by
+		// the Vue Navbar. It only uses bridge-backed page methods now (see the
+		// `this.page.menu` guard in toolbar.js for the one DOM holdover).
+		this.toolbar = new frappe.ui.form.Toolbar({
+			frm: this,
+			page: this.page,
+		});
+
 		this.viewers = new frappe.ui.form.FormViewers({
 			frm: this,
 			parent: $('<div class="form-viewers d-flex"></div>').prependTo(this.page.page_actions),
@@ -602,6 +612,28 @@ frappe.ui.form.Form = class FrappeForm {
 		if (!this.meta.istable) {
 			this.layout.doc = this.doc;
 			this.layout.attach_doc_and_docfields();
+
+			// The document sidebar renders into `this.page.sidebar`. In the vue shell
+			// that's the form's `.layout-side-section`, where FormSidebar.vue has
+			// already rendered the chrome; Sidebar.make() binds the dynamic widgets
+			// to it (assignments, attachments, tags, share, image, print, editable
+			// title). When bound to a Vue template (`is_vue`) the markup is built
+			// once and later renders just call refresh() — Vue keeps the title/name
+			// reactive; the classic desk keeps rebuilding the template each time.
+			if (frappe.boot.desk_settings.form_sidebar) {
+				if (this.sidebar?.is_vue) {
+					this.sidebar.refresh();
+				} else {
+					this.sidebar = new frappe.ui.form.Sidebar({
+						frm: this,
+						page: this.page,
+						toolbar: this.toolbar,
+					});
+					this.sidebar.make();
+				}
+			} else {
+				this.page.sidebar.hide();
+			}
 
 			// clear layout message
 			this.layout.show_message();
@@ -1261,13 +1293,15 @@ frappe.ui.form.Form = class FrappeForm {
 
 	enable_save() {
 		this.save_disabled = false;
-		this.toolbar.set_primary_action();
+		// No Toolbar in the vue shell (the bridge can't back its desk chrome); the
+		// Save button is rendered by Form.vue. Guard the toolbar call.
+		this.toolbar?.set_primary_action();
 	}
 
 	disable_save(set_dirty = false) {
 		// IMPORTANT: this function should be called in refresh event
 		this.save_disabled = true;
-		this.toolbar.current_status = null;
+		if (this.toolbar) this.toolbar.current_status = null;
 		// field changes should make form dirty
 		this.set_dirty = set_dirty;
 		this.page.clear_primary_action();

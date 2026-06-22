@@ -4,17 +4,22 @@
 // The form drives PageShell's bridge page: we hand `frappe.ui.form.Form` the
 // page-body node (which carries the bridge `.page`), so the legacy make_app_page
 // reuses the shell's page and the form renders into its `.layout-main-section`.
-// Custom buttons added by client scripts flow through the bridge
-// (frm.add_custom_button -> page.add_inner_button) to the Navbar. The form
-// Toolbar isn't created (the bridge doesn't back its desk-only chrome), so Save
-// and the status indicator are driven from here. The document sidebar is the Vue
-// `FormSidebar` in PageShell's `aside` slot (the right-hand panel).
+// The form Toolbar drives the page chrome through the bridge — the ⋯ menu,
+// navigation icons, primary/secondary actions and the status indicator — all
+// rendered by the Vue Navbar. Custom buttons from client scripts flow the same
+// way (frm.add_custom_button -> page.add_inner_button).
+//
+// The document sidebar is split: FormSidebar.vue renders the template (chrome),
+// and the legacy `frappe.ui.form.Sidebar` (created in form.js render_form) drives
+// the dynamic widgets by binding to that markup. It renders into `page.sidebar`,
+// so we point that bridge ref at the `.layout-side-section` container here (which
+// holds FormSidebar) — wrapped in `.old-desk-view` so the scoped sidebar SCSS
+// applies.
 //
 // Loading mirrors the legacy `FormFactory` (formview.js): re-render fresh docs in
 // place, fetch stale/missing ones, create-and-reroute for `new` names, and follow
 // renames via frappe.model.new_names.
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
-import { Button } from 'frappe-ui'
 import PageShell from '@/components/PageShell.vue'
 import FormSidebar from '@/components/FormSidebar.vue'
 
@@ -26,36 +31,18 @@ const doctype =
 	frappe.router.routes?.[props.doctype]?.doctype || frappe.router.unslug(props.doctype)
 
 const shell = useTemplateRef<InstanceType<typeof PageShell>>('shell')
+const formSidebar = useTemplateRef<HTMLDivElement>('formSidebar')
 const form = ref<any>(null)
 
 const title = computed(() =>
 	props.name && !props.name.startsWith('new') ? props.name : frappe.unscrub(doctype)
 )
 
-function setIndicator(name: string) {
-	const page = shell.value?.page
-	const doc = frappe.get_doc(doctype, name)
-	const indicator = doc && frappe.get_indicator(doc)
-	if (indicator && indicator.length) page?.set_indicator(indicator[0], indicator[1])
-	else page?.clear_indicator()
-}
-
-let dirtyBound = false
-
 function renderDoc(name: string) {
+	// refresh() runs setup() (first time) and refresh_header(), which drives the
+	// Toolbar -> bridge -> Navbar (primary action, ⋯ menu, indicator).
 	form.value.refresh(name)
 	;(window as any).cur_frm = form.value
-
-	// $wrapper exists only after the first refresh runs setup(); reflect the dirty
-	// state in the navbar indicator (there's no Toolbar to do it). Bind once.
-	if (!dirtyBound) {
-		dirtyBound = true
-		form.value.$wrapper.on('dirty', () => {
-			shell.value?.page?.set_indicator('Not Saved', 'orange')
-		})
-	}
-
-	setIndicator(name)
 }
 
 // formview.js render_new_doc: build a fresh local doc and reroute to its name.
@@ -102,15 +89,16 @@ function loadDoc(name: string) {
 	})
 }
 
-function save() {
-	form.value?.save('Save')
-}
-
 onMounted(() => {
 	// page-body carries the bridge page; hand it to the form as its parent so
 	// make_app_page reuses this shell's page (layout_main = .layout-main-section).
 	const pageBody = shell.value?.page?.state.refs.pageBody
 	if (!pageBody) return
+
+	// Point the bridge `page.sidebar` at the form's side-section so the legacy
+	// Sidebar (created in render_form) renders into it instead of the workspace
+	// nav. Set before the form is built so the first refresh wires it.
+	if (formSidebar.value) shell.value!.page.state.refs.sidebar = formSidebar.value
 
 	frappe.model.with_doctype(doctype, () => {
 		form.value = new frappe.ui.form.Form(doctype, pageBody, true, frappe.router.doctype_layout)
@@ -129,12 +117,19 @@ watch(
 
 <template>
 	<PageShell ref="shell" :title="title">
-		<template #navbar>
-			<Button class="primary-action" variant="solid" @click="save">Save</Button>
-		</template>
-
 		<template #aside>
-			<FormSidebar v-if="form" :frm="form" />
+			<!-- The legacy frappe.ui.form.Sidebar renders into this
+				 `.layout-side-section` (bridge page.sidebar). `.old-desk-view` scopes
+				 the form-sidebar SCSS; the inline width matches --form-sidebar-width. -->
+			<div class="old-desk-view h-full shrink-0 overflow-auto">
+				<div
+					ref="formSidebar"
+					class="layout-side-section h-full"
+					style="width: var(--form-sidebar-width)"
+				>
+					<FormSidebar :frm="form" />
+				</div>
+			</div>
 		</template>
 	</PageShell>
 </template>

@@ -56,6 +56,9 @@ export interface PageMenuItem {
 	extraClass: string
 	visible: boolean
 	data: Record<string, any>
+	// Marks a separator entry (page.js add_divider). The Navbar splits the menu
+	// into frappe-ui groups at these markers rather than rendering them as items.
+	divider?: boolean
 }
 
 // A custom button group in the inner toolbar (page.js add_custom_button_group):

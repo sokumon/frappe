@@ -418,6 +418,15 @@ export function createPage(opts: PageOptions = {}): Page {
 		add_action_item(label: string, click?: (...args: any[]) => any) {
 			return ret(push(state.actionItems, makeMenuItem(label, click)))
 		},
+		// page.js add_divider appends a `.dropdown-divider` <li> to the menu. Here it
+		// pushes a divider marker into the reactive menu; the Navbar splits the menu
+		// into frappe-ui groups at these markers, and the dropdown's `divide-y`
+		// renders the separator (the toolbar uses this between menu sections).
+		add_divider() {
+			const item = makeMenuItem('---')
+			item.divider = true
+			return push(state.menuItems, item)
+		},
 		clear_menu() {
 			state.menuItems = []
 		},
@@ -607,12 +616,12 @@ export function createPage(opts: PageOptions = {}): Page {
 			const button = document.createElement('button')
 			button.type = 'button'
 			button.className =
-				'flex items-center justify-center rounded p-1.5 text-ink-gray-7 hover:bg-surface-gray-2'
+				'text-muted btn btn-default icon-btn p-0'
 			if (tooltip) button.title = tooltip
 			if (click) button.addEventListener('click', click)
 
 			const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-			svg.setAttribute('class', 'h-4 w-4')
+			svg.setAttribute('class', 'h-4 w-4 icon icon-sm pointer')
 			svg.setAttribute('aria-hidden', 'true')
 			const use = document.createElementNS('http://www.w3.org/2000/svg', 'use')
 			use.setAttribute('href', `#${icon}`)
@@ -773,6 +782,17 @@ export function createPage(opts: PageOptions = {}): Page {
 			state.subtitle = txt || ''
 		},
 		get_title_area() {
+			return $wrap(state.refs.pageHead, page)
+		},
+		// page.js exposes `$title_area`/`$sub_title_area` jQuery handles on the page.
+		// The Vue navbar has no title-area DOM, but legacy callers chain `.find()`
+		// on these (e.g. form sidebar's set_user_image: `$title_area.find(".title-
+		// image")`). Return the page-head wrapper so those chains resolve to a safe
+		// empty set instead of throwing on undefined.
+		get $title_area() {
+			return $wrap(state.refs.pageHead, page)
+		},
+		get $sub_title_area() {
 			return $wrap(state.refs.pageHead, page)
 		},
 		get_main_icon(icon: string) {
