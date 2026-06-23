@@ -71,8 +71,8 @@ class DesktopPage {
 		this.setup_avatar();
 		this.setup_notifications();
 		this.setup_navbar();
-		this.setup_awesomebar();
 		this.handle_route_change();
+		this.setup_awesomebar();
 	}
 	setup_notifications() {
 		this.notifications = new frappe.ui.Notifications({

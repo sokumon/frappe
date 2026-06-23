@@ -2,7 +2,6 @@
 
 // Bootstrap :root CSS custom properties — global, outside @scope
 @import "~bootstrap/scss/root";
-
 // form_sidebar.scss declares these on `:root`, but it's imported inside @scope
 // below — where `:root` (an ancestor of the scope root) can't match, so they'd
 // never be defined. Declare them globally here so `var(--form-sidebar-width)`
@@ -16,6 +15,7 @@
 @import "~bootstrap/scss/modal";
 @import "../common/modal";
 @import "../common/datepicker";
+@import "~bootstrap/scss/popover";
 
 // Bootstrap tooltips attach to <body> (container defaults to false ->
 // document.body), so like modals they live outside the .old-desk-view/.modal

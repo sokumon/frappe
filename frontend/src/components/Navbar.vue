@@ -5,6 +5,7 @@
 // add_inner_button calls). PageShell always mounts exactly one Navbar.
 import { computed } from 'vue'
 import { Badge, Breadcrumbs, Button, Dropdown } from 'frappe-ui'
+import { Icon } from 'frappe-ui/icons'
 import type { PageInnerButton, PageMenuItem, PageState } from '@/page/types'
 import { usePage } from '@/page/usePage'
 import { useBreadcrumbs } from '@/composables/getBreadcrumbs'

@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from "vue-router"
+import { createRouter, createWebHistory, isNavigationFailure, NavigationFailureType } from "vue-router"
 import type { LocationQuery, LocationQueryRaw } from "vue-router"
 import { APP_PREFIX } from "@/config"
 import routes from "./routes"
@@ -54,9 +54,15 @@ const router = createRouter({
 // setup-wizard / rename gate runs first on every navigation
 router.beforeEach(gate)
 
-// keep the legacy frappe.* surface in sync after each successful navigation
+// keep the legacy frappe.* surface in sync after each navigation that actually
+// landed on `to`. A *duplicated* navigation (e.g. clicking a link to the route
+// you're already on, which the link interceptor routinely produces) still
+// counts as landing there, and legacy desk code relies on the resulting
+// frappe.router "change" event firing — the old router triggered it
+// unconditionally. Only genuine non-arrivals (aborted/cancelled by a guard)
+// should skip the sync.
 router.afterEach((to, _from, failure) => {
-	if (failure) return
+	if (failure && !isNavigationFailure(failure, NavigationFailureType.duplicated)) return
 	syncCompatState(to)
 })
 
