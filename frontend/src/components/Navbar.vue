@@ -168,9 +168,7 @@ const navbarIcons = computed(() => props.state.icons.filter((ic: any) => !ic.el?
 </script>
 
 <template>
-	<nav
-		class="bg-surface-white border-b px-2 py-2.5 h-12 flex items-center justify-between w-full"
-	>
+	<nav class="bg-surface-base border-b px-2 py-2.5 h-12 flex items-center justify-between w-full">
 		<!-- title-area -->
 		<div class="flex items-center gap-2 min-w-0">
 			<Breadcrumbs

@@ -178,16 +178,38 @@ function appTitle(appName?: string): string {
 // it before the first sidebar is built.
 const headerMenuItems: unknown[] = []
 
+// Render the header logo as a lucide icon (outlined, `stroke=currentColor`), the
+// same way the sidebar items render theirs — NOT `frappe.utils.icon`, whose
+// frappe sprite draws solid/filled glyphs (e.g. "stock" comes out a black
+// hexagon). `header_icon` is an Icon-field name; `toLucideName` maps it into the
+// lucide sprite and falls back to a generic lucide icon for names lucide lacks.
+// SidebarHeader renders a *string* logo as `<img :src>` and a falsy one as the
+// title-initial fallback, so we return a component (its `<component :is>` branch)
+// that centers the lucide Icon in the 32px logo box. `markRaw` keeps Vue from
+// making the component reactive.
+function buildLogo(headerIcon?: string): Component | false {
+  if (!headerIcon) return false
+  const name = toLucideName(headerIcon)
+  return markRaw(
+    (_props: Record<string, unknown>, ctx: { attrs: Record<string, unknown> }) =>
+      h(
+        'span',
+        {
+          ...ctx.attrs,
+          // SidebarHeader passes `class="w-full h-full"`; keep it, center the
+          // icon and give it the header's ink color.
+          class: [ctx.attrs.class as string, 'flex items-center justify-center text-ink-gray-8'],
+        },
+        h(Icon, { name, class: 'size-6' })
+      )
+  ) as unknown as Component
+}
+
 function buildHeader(data: SidebarData): SidebarHeaderConfig {
   return {
     title: data.label,
     subtitle: appTitle(data.app),
-    // get_desktop_icon returns a URL string or `false`; SidebarHeader treats a
-    // string as an <img> src and any falsy value as the title-initial fallback.
-    logo:
-      typeof frappe !== 'undefined'
-        ? frappe.utils.get_desktop_icon(data.label, 'Solid')
-        : false,
+    logo: buildLogo(data.header_icon),
     menuItems: headerMenuItems,
   }
 }

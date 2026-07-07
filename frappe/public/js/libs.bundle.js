@@ -1,4 +1,4 @@
-import "./jquery-bootsrap";
+import "./jquery-bootstrap";
 import "./lib/moment";
 import Sortable from "sortablejs";
 window.SetVueGlobals = (app) => {
