@@ -25,11 +25,16 @@ const props = withDefaults(
 		sidebarPosition?: 'Left' | 'Right'
 		sidebarHeader?: Record<string, any>
 		sidebarSections?: any[]
+		// Apply the legacy desk SCSS scope (`old-desk-view`) to the main section.
+		// Views rendering their own Vue UI into the default slot (e.g. the Form's
+		// FormLayout) pass `false` so that SCSS doesn't bleed into them.
+		legacyStyles?: boolean
 	}>(),
 	{
 		sidebar: true,
 		sidebarPosition: 'Left',
 		sidebarSections: () => [],
+		legacyStyles: true,
 	}
 )
 
@@ -115,7 +120,7 @@ defineExpose({ page })
 			<div class="flex flex-1 overflow-hidden">
 				<!-- page-body (page.html): page-wrapper > page-content holds the main
 					 section; legacy code queries .page-content / .layout-main. -->
-				<OldDeskView>
+				<OldDeskView :legacy-styles="legacyStyles">
 					<div ref="pageBody" class="page-body flex flex-1 flex-col overflow-hidden">
 						<div class="page-toolbar hide" />
 						<div class="page-wrapper flex flex-1 flex-col overflow-hidden">

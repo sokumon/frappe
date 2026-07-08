@@ -144,7 +144,11 @@ watch(
 </script>
 
 <template>
-	<PageShell ref="shell" :title="title">
+	<!-- legacy-styles=false: the field view is the Vue FormLayout, so keep the
+		 legacy desk SCSS (`old-desk-view`) off the main section. The document
+		 sidebar in #aside keeps its own `old-desk-view` wrapper for the legacy
+		 form-sidebar widgets. -->
+	<PageShell ref="shell" :title="title" :legacy-styles="false">
 		<!-- The Vue field view, rendered into PageShell's main section
 			 (.layout-main-section). The legacy .std-form-layout renders alongside but
 			 is hidden via `.vue-form-active` (added to page-body in onMounted). -->
