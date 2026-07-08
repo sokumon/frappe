@@ -156,7 +156,7 @@ watch(
 			v-if="formDoc"
 			:layout="formSchema"
 			:doc="formDoc"
-			class="vue-form-layout max-w-[1000px] p-0 m-0 rounded-0 w-max"
+			class="vue-form-layout h-full rounded-none"
 		/>
 
 		<template #aside>
