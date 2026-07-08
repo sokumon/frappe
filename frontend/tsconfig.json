@@ -13,7 +13,9 @@
     "skipLibCheck": true,
     "noEmit": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@framework/ui": ["../ui/src/index.ts"],
+      "@framework/ui/*": ["../ui/src/*"]
     },
     "types": ["unplugin-icons/types/vue"]
   },

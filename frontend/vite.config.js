@@ -1,5 +1,6 @@
 import vue from '@vitejs/plugin-vue'
 import frappeui from 'frappe-ui/vite'
+import frameworkUI from '@framework/ui/vite'
 import path from 'path'
 import { defineConfig } from 'vite'
 
@@ -9,6 +10,10 @@ export default defineConfig({
 	},
 	plugins: [
 		vue(),
+		// @framework/ui ships raw source compiled in place by this bundler; dedupe
+		// its bare imports of vue/vue-router/frappe-ui/reka-ui/dompurify to the
+		// host's single copy (else provide/inject + Vue identity break).
+		frameworkUI(),
 		frappeui({
 			frappeProxy: true,
 			lucideIcons: true,

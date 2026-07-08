@@ -7,10 +7,7 @@
 		 column makes the page-body fill and bound the chain, so `main.layout-main`
 		 is the real, bounded scroller. `min-h-0`/`min-w-0` let it shrink to enable
 		 that scrolling instead of overflowing. -->
-	<div
-		ref="el"
-		class="main-section old-desk-view overflow-hidden flex flex-col flex-1 min-h-0 min-w-0"
-	>
+	<div ref="el" class="main-section overflow-hidden flex flex-col flex-1 min-h-0 min-w-0">
 		<slot />
 	</div>
 </template>

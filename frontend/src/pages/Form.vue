@@ -19,9 +19,12 @@
 // Loading mirrors the legacy `FormFactory` (formview.js): re-render fresh docs in
 // place, fetch stale/missing ones, create-and-reroute for `new` names, and follow
 // renames via frappe.model.new_names.
-import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import PageShell from '@/components/PageShell.vue'
 import FormSidebar from '@/components/FormSidebar.vue'
+import { FormLayout } from '@framework/ui/FormLayout'
+import { useFormBridge } from '@/composables/useFormBridge'
+import type { FormBridge } from '@/composables/useFormBridge'
 
 // route params: doctype (url slug) and document name
 const props = defineProps<{ doctype: string; name: string }>()
@@ -34,15 +37,30 @@ const shell = useTemplateRef<InstanceType<typeof PageShell>>('shell')
 const formSidebar = useTemplateRef<HTMLDivElement>('formSidebar')
 const form = ref<any>(null)
 
+// The Vue field view. The legacy `frm` stays the engine (script_manager, toolbar,
+// sidebar, save, watch_model_updates); `useFormBridge` renders its fields through
+// `<FormLayout>` and routes edits through `frappe.model.set_value` so legacy
+// `frappe.ui.form.on(...)` scripts keep firing. The legacy `.std-form-layout` is
+// hidden (kept in the DOM so fields_dict/refresh_field/set_df_property still work).
+const bridge = shallowRef<FormBridge | null>(null)
+const formSchema = computed(() => bridge.value?.layout.value ?? [])
+const formDoc = computed(() => bridge.value?.doc ?? null)
+
 const title = computed(() =>
 	props.name && !props.name.startsWith('new') ? props.name : frappe.unscrub(doctype)
 )
 
 function renderDoc(name: string) {
-	// refresh() runs setup() (first time) and refresh_header(), which drives the
-	// Toolbar -> bridge -> Navbar (primary action, ⋯ menu, indicator).
+	// Clear meta-script ops so this render's `refresh` re-applies them cleanly
+	// (set_df_property/toggle_* run on every refresh); then refresh() runs setup()
+	// (first time) and refresh_header(), which drives the Toolbar -> bridge ->
+	// Navbar (primary action, ⋯ menu, indicator) and fires the refresh script.
+	bridge.value?.resetOps()
 	form.value.refresh(name)
 	;(window as any).cur_frm = form.value
+	// Mirror the freshly-loaded doc (defaults + values scripts set on refresh) into
+	// the reactive doc the Vue FormLayout renders.
+	bridge.value?.seed()
 }
 
 // formview.js render_new_doc: build a fresh local doc and reroute to its name.
@@ -100,12 +118,22 @@ onMounted(() => {
 	// nav. Set before the form is built so the first refresh wires it.
 	if (formSidebar.value) shell.value!.page.state.refs.sidebar = formSidebar.value
 
+	// Hide the legacy field layout, scoped to this form's page-body (kept in the
+	// DOM so the legacy fields_dict/refresh_field/set_df_property still resolve).
+	pageBody.classList.add('vue-form-active')
+
 	frappe.model.with_doctype(doctype, () => {
 		form.value = new frappe.ui.form.Form(doctype, pageBody, true, frappe.router.doctype_layout)
 		;(window as any).cur_frm = form.value
+		// Build the bridge (wrap set_df_property/toggle_*, build the base schema from
+		// pristine meta) BEFORE the first refresh, so meta-script ops from the very
+		// first `refresh` are captured too.
+		bridge.value = useFormBridge(form.value)
 		loadDoc(props.name)
 	})
 })
+
+onUnmounted(() => bridge.value?.dispose())
 
 // Doc-to-doc navigation within the same doctype keeps this component mounted
 // (FormOrPage keys the form by doctype), so re-load on name change.
@@ -117,6 +145,16 @@ watch(
 
 <template>
 	<PageShell ref="shell" :title="title">
+		<!-- The Vue field view, rendered into PageShell's main section
+			 (.layout-main-section). The legacy .std-form-layout renders alongside but
+			 is hidden via `.vue-form-active` (added to page-body in onMounted). -->
+		<FormLayout
+			v-if="formDoc"
+			:layout="formSchema"
+			:doc="formDoc"
+			class="vue-form-layout max-w-[1000px] p-0 m-0 rounded-0 w-max"
+		/>
+
 		<template #aside>
 			<!-- The legacy frappe.ui.form.Sidebar renders into this
 				 `.layout-side-section` (bridge page.sidebar). `.old-desk-view` scopes
@@ -133,3 +171,13 @@ watch(
 		</template>
 	</PageShell>
 </template>
+
+<!-- Not scoped: the legacy `.std-form-layout` is built by form.js into the bridge
+	 page-body, outside this component's template, so a scoped rule can't reach it.
+	 The `.vue-form-active` marker (added to page-body only while a Vue form is
+	 mounted) keeps the rule from leaking to non-form desk pages. -->
+<style>
+.vue-form-active .std-form-layout {
+	display: none !important;
+}
+</style>

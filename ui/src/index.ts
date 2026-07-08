@@ -22,3 +22,5 @@ export * from "./components/TableMultiSelect";
 export * from "./components/Notifications";
 export * from "./components/ActivityTimeline";
 export * from "./components/InviteUser";
+
+import {InviteUser} from '@ui/framework'

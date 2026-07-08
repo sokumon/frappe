@@ -32,7 +32,10 @@ const isBeta = computed(() => {
 })
 const title = computed(() => {
 	tick.value
-	return props.frm?.get_title?.() ?? ''
+	// Guard on frm.doc: get_title() -> frappe.model.get_doc_title(this.doc) reads
+	// doc.name unguarded, so it throws while the doc is still loading (the async
+	// with_doc fetch path renders the sidebar before renderDoc sets frm.doc).
+	return props.frm?.doc ? props.frm.get_title?.() ?? '' : ''
 })
 const titleText = computed(() => escape(title.value))
 const docName = computed(() => {
@@ -44,7 +47,7 @@ const showName = computed(() => title.value && title.value !== docName.value)
 const canWrite = computed(() => {
 	tick.value
 	const frm = props.frm
-	if (!frm) return false
+	if (!frm?.doc) return false
 	const imgField = frm.fields_dict?.[frm.meta?.image_field]
 	return frappe.model.can_write(frm.doctype, frm.docname) && !imgField?.df?.read_only
 })

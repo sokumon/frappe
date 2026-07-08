@@ -10,6 +10,8 @@ declare global {
 	interface Window {
 		frappe: any
 		system_timezone?: string
+		// Framework formatting defaults consumed by @framework/ui FormLayout fields.
+		sysdefaults?: any
 		_router?: import('vue-router').Router
 	}
 }

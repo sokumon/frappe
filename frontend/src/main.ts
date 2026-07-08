@@ -104,6 +104,10 @@ async function initFrappe() {
     values = values.data
     if (!window.frappe) window.frappe = {};
     window.frappe = { ...window.frappe, ...values }
+    // @framework/ui's FormLayout number/currency fields read framework formatting
+    // defaults from `window.sysdefaults` (getFormatDefaults). The legacy desk keeps
+    // them on frappe.boot.sysdefaults; publish them on window for the Vue fields.
+    window.sysdefaults = frappe.boot?.sysdefaults
     frappe.breadcrumbs = {
         preferred: []
     },
