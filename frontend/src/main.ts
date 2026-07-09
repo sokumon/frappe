@@ -150,6 +150,18 @@ function bootstrap() {
     // cache, moment, setup_complete) before any component or route guard runs.
     new FrappeApp()
 
+    // Realtime socket for @framework/ui components that use it (e.g.
+    // ActivityTimeline's useActivityTimeline: doc_subscribe / docinfo_update /
+    // doc_update). `getSocketInstance()` reads inject('socket'/'$socket'); the
+    // RealTimeClient (frappe.realtime) exposes emit/on/off and proxies to its
+    // socket, so provide it directly (init it with the boot socketio port first).
+    try {
+        frappe.realtime?.init?.(frappe.boot?.socketio_port)
+    } catch (e) {
+        console.warn('realtime init failed', e)
+    }
+    app.provide('socket', frappe.realtime)
+
     // Re-point frappe.ui.make_app_page / frappe.ui.Page at the Vue page bridge
     // so legacy views (form.js, factory.js, treeview.js, ...) render their
     // chrome through PageShell. Runs after the desk bundles defined frappe.ui.

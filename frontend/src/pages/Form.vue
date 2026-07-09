@@ -25,6 +25,7 @@ import FormSidebar from '@/components/FormSidebar.vue'
 import { FormLayout } from '@framework/ui/FormLayout'
 import { useFormBridge } from '@/composables/useFormBridge'
 import type { FormBridge } from '@/composables/useFormBridge'
+import FormTimeline from '@/components/FormTimeline.vue'
 
 // route params: doctype (url slug) and document name
 const props = defineProps<{ doctype: string; name: string }>()
@@ -46,6 +47,12 @@ const bridge = shallowRef<FormBridge | null>(null)
 const formSchema = computed(() => bridge.value?.layout.value ?? [])
 const formDoc = computed(() => bridge.value?.doc ?? null)
 
+// The docname the activity timeline renders for — set only once the doc is loaded
+// and saved (null for new/unsaved/loading), so FormTimeline never mounts with an
+// empty docname (get_docinfo/get_activity_timeline would fail on ''). Keyed by it
+// so the timeline reconstructs per document.
+const timelineName = ref<string | null>(null)
+
 const title = computed(() =>
 	props.name && !props.name.startsWith('new') ? props.name : frappe.unscrub(doctype)
 )
@@ -61,6 +68,9 @@ function renderDoc(name: string) {
 	// Mirror the freshly-loaded doc (defaults + values scripts set on refresh) into
 	// the reactive doc the Vue FormLayout renders.
 	bridge.value?.seed()
+	// Show the timeline only for a loaded, saved doc (docname now set on the frm).
+	const doc = form.value.doc
+	timelineName.value = doc && !doc.__islocal ? form.value.docname : null
 }
 
 // formview.js render_new_doc: build a fresh local doc and reroute to its name.
@@ -159,6 +169,14 @@ watch(
 			class="vue-form-layout h-full rounded-none"
 		/>
 
+		<!-- Document activity feed (parity with the legacy form_timeline.js footer). -->
+		<FormTimeline
+			v-if="timelineName"
+			:key="timelineName"
+			:frm="form"
+			class="mx-auto w-full max-w-4xl px-4 pb-8 pt-6 sm:px-6"
+		/>
+
 		<template #aside>
 			<!-- The legacy frappe.ui.form.Sidebar renders into this
 				 `.layout-side-section` (bridge page.sidebar). `.old-desk-view` scopes
@@ -182,6 +200,13 @@ watch(
 	 mounted) keeps the rule from leaking to non-form desk pages. -->
 <style>
 .vue-form-active .std-form-layout {
+	display: none !important;
+}
+/* The legacy form footer (form_footer.html: comment box + `.new-timeline`
+   Activity feed) is appended next to the section by form.js, outside
+   `.std-form-layout`. Hide it — the Vue FormTimeline replaces it — so the form
+   doesn't show two Activity sections. */
+.vue-form-active .form-footer {
 	display: none !important;
 }
 </style>

@@ -7,6 +7,13 @@ export default {
 		'./index.html',
 		'./src/**/*.{vue,js,ts,jsx,tsx}',
 		'./node_modules/frappe-ui/src/**/*.{vue,js,ts,jsx,tsx}',
+		// @framework/ui ships raw source compiled in place (linked at ../ui). Its
+		// components use classes — arbitrary values like
+		// `grid-cols-[30px_minmax(auto,_1fr)]` and `after:start-[50%]` — that appear
+		// nowhere else, so Tailwind must scan the source to generate them, else those
+		// components' layout collapses. Real path (not the node_modules symlink) so
+		// fast-glob traverses it.
+		'../ui/src/**/*.{vue,js,ts,jsx,tsx}',
 		// INFO: uncomment the line below if you have workspaces set up
 		// '../node_modules/frappe-ui/src/**/*.{vue,js,ts,jsx,tsx}',
 	],
