@@ -39,7 +39,15 @@ const docname: string = props.frm.docname
 
 // Feed + realtime + email pagination (cached per doctype:docname; this component
 // is keyed by name in Form.vue, so it reconstructs per document).
-const { activities, loading, reload, paginate } = useActivityTimeline(doctype, docname)
+const {
+	activities,
+	loading: activityLoading,
+	reload,
+	paginate,
+} = useActivityTimeline(doctype, docname)
+// Re-wrap in a host-Vue computed: the composable's refs come from @framework/ui's
+// Vue instance, which the template type-checker won't auto-unwrap (dual Vue types).
+const loading = computed(() => activityLoading.value)
 // We render newest-first (legacy form-timeline order), so the oldest email sits at
 // the bottom — move the "load older" affordance there (the composable defaults to
 // an inline row above the oldest email, which assumes oldest-first).
@@ -70,8 +78,11 @@ function fullname(user: string): string {
 function bold(v: any): string {
 	return `<b>${frappe.utils.escape_html(v == null ? '' : String(v))}</b>`
 }
-function commentWhen(ts: string): string {
-	return (window as any).comment_when?.(ts) || frappe.datetime?.comment_when?.(ts) || ''
+function commentWhen(ts?: string): string {
+	if (!ts) return ''
+	// prettyDate -> plain "10 minutes ago"; comment_when would return a
+	// `<span class="frappe-timestamp">` HTML wrapper (we render this as text).
+	return frappe.datetime?.prettyDate?.(ts) || ''
 }
 
 // --- Backfill: legacy rows the new backend doesn't emit ---------------------
@@ -87,10 +98,17 @@ function legacyLog(
 		type: 'legacy_log',
 		key,
 		timestamp,
-		icon: markRaw(icon),
+		// cast: markRaw returns @framework/ui's Vue `Component` type, a distinct
+		// instance from the host's — assignable at runtime, not to the TS checker.
+		icon: markRaw(icon) as any,
 		author: owner ? userInfo(owner) : undefined,
 		data: { html },
 	}
+}
+// The `#item-legacy_log` slot's `activity.data` is typed `unknown` (CustomActivity),
+// so read the html through a helper.
+function logHtml(activity: any): string {
+	return activity?.data?.html ?? ''
 }
 function computeBackfill() {
 	const info = docinfo()
@@ -445,9 +463,21 @@ watch(activities, computeBackfill)
 				</CommentItem>
 			</template>
 
-			<!-- Backfilled legacy rows (views / shares / milestones / custom / web views). -->
+			<!-- Backfilled legacy rows (views / shares / milestones / custom / web views).
+			     Mirrors LogItem's one-liner layout (ps-[13px] + leading-6 + right-aligned
+			     time) so these align with the backend log rows in the same thread. -->
 			<template #item-legacy_log="{ activity }">
-				<span class="text-p-sm text-ink-gray-7" v-html="activity.data.html" />
+				<div
+					class="flex flex-1 items-center gap-1.5 ps-[13px] text-sm leading-6 text-ink-gray-6"
+				>
+					<span
+						class="min-w-0 [&_b]:font-medium [&_b]:text-ink-gray-8"
+						v-html="logHtml(activity)"
+					/>
+					<span class="ml-auto whitespace-nowrap text-sm text-ink-gray-5">
+						{{ commentWhen(activity.timestamp) }}
+					</span>
+				</div>
 			</template>
 		</ActivityTimeline>
 	</div>

@@ -166,7 +166,7 @@ watch(
 			v-if="formDoc"
 			:layout="formSchema"
 			:doc="formDoc"
-			class="vue-form-layout h-full rounded-none"
+			class="vue-form-layout h-full rounded-none border-none"
 		/>
 
 		<!-- Document activity feed (parity with the legacy form_timeline.js footer). -->
