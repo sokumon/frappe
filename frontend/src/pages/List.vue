@@ -195,7 +195,7 @@ watch(
 					</template>
 					<span
 						v-else-if="item && item.__html !== undefined"
-						class="truncate text-base"
+						class="truncate text-base old-desk-view"
 						v-html="item.__html"
 					/>
 					<span v-else class="truncate text-base">{{ item }}</span>
