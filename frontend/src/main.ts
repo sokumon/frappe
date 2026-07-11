@@ -8,6 +8,7 @@ import { Button, setConfig, frappeRequest, resourcesPlugin } from 'frappe-ui'
 import { spritePlugin } from "frappe-ui/icons"
 import { FrappeApp } from "@/frappeApp"
 import { installPageBridge } from "@/page/createPage"
+import { installDialogBridge } from "@/dialog/createDialog"
 import { installBreadcrumbs } from "@/composables/getBreadcrumbs"
 async function appendScripts(scripts) {
     if (!scripts?.length) return
@@ -166,6 +167,11 @@ function bootstrap() {
     // so legacy views (form.js, factory.js, treeview.js, ...) render their
     // chrome through PageShell. Runs after the desk bundles defined frappe.ui.
     installPageBridge()
+
+    // Re-point frappe.ui.Dialog at the Vue dialog bridge (DialogHost renders the
+    // reactive stack). Covers frappe.prompt / frappe.warn / every direct
+    // `new frappe.ui.Dialog(...)` — they construct the class at call time.
+    installDialogBridge()
 
     // Build the router's slug->doctype map + workspaces (legacy
     // frappe.router.setup, called from load_bootinfo). Must run before mount so
