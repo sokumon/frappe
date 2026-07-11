@@ -423,6 +423,9 @@ export class VueForm {
 			// workflow read-only
 			this.read_only = frappe.workflow.is_read_only(this.doctype, this.docname)
 
+			// site-wide read-only (maintenance) — disable the whole form (form.js parity).
+			if (frappe.boot.read_only) this.disable_form()
+
 			// fire before_load/onload (first open) then refresh
 			this.trigger_onload(switched)
 		}
@@ -1278,6 +1281,17 @@ export class VueForm {
 			mask: p.mask,
 		}))
 		this.refresh_fields()
+	}
+
+	// Ported from form.js: strip write perms, mark every field read-only (each
+	// set_df_property pushes an applyMetaScript op so the Vue layout re-resolves),
+	// and disable saving. Used by scripts and by refresh() when frappe.boot.read_only.
+	disable_form() {
+		this.set_read_only()
+		this.fields.forEach((field) => {
+			this.set_df_property(field.df.fieldname, 'read_only', '1')
+		})
+		this.disable_save()
 	}
 
 	// --- ACTIONS (ported) --------------------------------------------------
