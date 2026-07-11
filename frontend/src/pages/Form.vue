@@ -169,13 +169,17 @@ watch(
 			class="vue-form-layout h-full rounded-none border-none"
 		/>
 
-		<!-- Document activity feed (parity with the legacy form_timeline.js footer). -->
-		<FormTimeline
-			v-if="timelineName"
-			:key="timelineName"
-			:frm="form"
-			class="mx-auto w-full max-w-4xl px-4 pb-8 pt-6 sm:px-6"
-		/>
+		<!-- Document activity feed (parity with the legacy form_timeline.js footer).
+			 The full-width wrapper carries the form/feed divider on tabless forms
+			 (see the `.form-timeline-region` rule below); the inner column matches
+			 the tabless sections' content column so the two align. -->
+		<div v-if="timelineName" class="form-timeline-region">
+			<FormTimeline
+				:key="timelineName"
+				:frm="form"
+				class="mx-auto w-full max-w-4xl px-4 pb-8 pt-6 sm:px-6"
+			/>
+		</div>
 
 		<template #aside>
 			<!-- The legacy frappe.ui.form.Sidebar renders into this
@@ -208,5 +212,30 @@ watch(
    doesn't show two Activity sections. */
 .vue-form-active .form-footer {
 	display: none !important;
+}
+
+/* Tabless forms (FormLayout's `no-tabs` hook) drop the tab card, so the bare
+   sections would otherwise hug the page edges. Instead: sections stay full
+   width so their top-border dividers run edge-to-edge across the main section,
+   while each section's inner content is constrained to the same centered
+   column as the timeline below (max-w-4xl + px-4/sm:px-6). */
+.vue-form-layout.no-tabs {
+	padding-top: 1.25rem;
+	padding-bottom: 1.5rem;
+}
+.vue-form-layout.no-tabs .section > div {
+	width: 100%;
+	max-width: 56rem;
+	margin-inline: auto;
+	padding-inline: 1rem;
+}
+@media (min-width: 640px) {
+	.vue-form-layout.no-tabs .section > div {
+		padding-inline: 1.5rem;
+	}
+}
+/* Full-bleed divider between a tabless form and the activity feed. */
+.vue-form-layout.no-tabs + .form-timeline-region {
+	border-top: 1px solid var(--outline-elevation-2);
 }
 </style>

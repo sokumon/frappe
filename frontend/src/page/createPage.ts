@@ -912,7 +912,6 @@ function installContainer(f: any) {
 		}
 		// legacy add_page stamps these on every wrapper it returns — whether the
 		// fresh div above or the pre-registered PageShell wrapper (workspaces).
-		debugger
 		page.id = page.id || 'page-' + label
 		page.setAttribute?.('data-page-route', label)
 		page.label = label

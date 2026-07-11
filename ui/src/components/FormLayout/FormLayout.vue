@@ -1,7 +1,13 @@
 <template>
+	<!-- `no-tabs` is a styling hook (like `.section`/`.field`): hosts restyle the
+		 card-less single-tab presentation without reaching into internal state. -->
 	<div
 		class="flex flex-col"
-		:class="{ 'border border-outline-gray-1 border-outline-elevation-2 rounded-lg': hasTabs }"
+		:class="
+			hasTabs
+				? 'border border-outline-gray-1 border-outline-elevation-2 rounded-lg'
+				: 'no-tabs'
+		"
 	>
 		<Tabs
 			v-model="tabIndex"
