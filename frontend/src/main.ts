@@ -9,6 +9,7 @@ import { spritePlugin } from "frappe-ui/icons"
 import { FrappeApp } from "@/frappeApp"
 import { installPageBridge } from "@/page/createPage"
 import { installDialogBridge } from "@/dialog/createDialog"
+import { installMultiSelectDialogBridge } from "@/dialog/multiSelectDialog"
 import { installBreadcrumbs } from "@/composables/getBreadcrumbs"
 async function appendScripts(scripts) {
     if (!scripts?.length) return
@@ -172,6 +173,11 @@ function bootstrap() {
     // reactive stack). Covers frappe.prompt / frappe.warn / every direct
     // `new frappe.ui.Dialog(...)` — they construct the class at call time.
     installDialogBridge()
+
+    // Re-point frappe.ui.form.MultiSelectDialog ("Get Items From") at the Vue
+    // @framework/ui RecordPicker — its legacy jQuery event wiring can't attach
+    // to Vue-rendered fields, so it gets a native component.
+    installMultiSelectDialogBridge()
 
     // Build the router's slug->doctype map + workspaces (legacy
     // frappe.router.setup, called from load_bootinfo). Must run before mount so
