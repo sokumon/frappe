@@ -11,20 +11,38 @@ import { installPageBridge } from "@/page/createPage"
 import { installDialogBridge } from "@/dialog/createDialog"
 import { installMultiSelectDialogBridge } from "@/dialog/multiSelectDialog"
 import { installBreadcrumbs } from "@/composables/getBreadcrumbs"
+import { installForm } from "@/form"
+
+// The Vue-native form engine (frappe.ui.form.on / Controller / Form /
+// QuickEntryForm). It replaces the removed `form_vue_shell` bundle and MUST be
+// installed after libs/controls (frappe.provide etc.) but before erpnext, whose
+// client scripts call frappe.ui.form.on and whose classes extend
+// frappe.ui.form.Controller / QuickEntryForm at module-eval. We install it in the
+// appendScripts loop, just before the first erpnext/india_compliance script.
+let formEngineInstalled = false
+function installFormEngineOnce() {
+    if (formEngineInstalled) return
+    installForm()
+    formEngineInstalled = true
+}
+
 async function appendScripts(scripts) {
     if (!scripts?.length) return
 
-    const filteredScripts = scripts.filter(script => 
-        script.includes("libs") || 
-        script.includes("list") || 
-        script.includes("vue_shell") || 
+    const filteredScripts = scripts.filter(script =>
+        script.includes("libs") ||
+        script.includes("list") ||
         script.includes("controls") ||
         script.includes("report") ||
-        script.includes("erpnext") || 
-        script.includes("india_compliance") 
+        script.includes("erpnext") ||
+        script.includes("india_compliance")
     )
     let counter = 0;
     for (const script of filteredScripts) {
+        // Install the form engine before the first app bundle that depends on it.
+        if (script.includes("erpnext") || script.includes("india_compliance")) {
+            installFormEngineOnce()
+        }
         await new Promise<void>((resolve, reject) => {
             console.log(script)
             const scriptEl = document.createElement('script')
@@ -139,6 +157,11 @@ async function initFrappe() {
 }
 let isBootstraped = false;
 function bootstrap() {
+    // Safety net: on a plain-frappe site with no erpnext/india_compliance bundle,
+    // the in-loop install never fired. Idempotent (guarded), so a no-op if the
+    // erpnext path already installed it.
+    installFormEngineOnce()
+
     const app = createApp(App)
     setConfig('resourceFetcher', frappeRequest)
     app.use(resourcesPlugin)

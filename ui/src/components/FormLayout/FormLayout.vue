@@ -40,7 +40,7 @@ import FormLayoutSection from "./FormLayoutSection.vue";
 import { useFieldTypes } from "./useFieldTypes";
 import { resolveLayout } from "./resolveLayout";
 import { DocKey, HasTabsKey, ParentDocKey, ResolveFieldKey, UpdateKey } from "./types";
-import type { FormLayoutProps } from "./types";
+import type { FormLayoutProps, Tab } from "./types";
 
 const props = defineProps<FormLayoutProps>();
 
@@ -60,8 +60,15 @@ const resolvedLayout = computed(() =>
 	resolveLayout(props.layout, doc.value, parentDoc?.value ?? doc.value)
 );
 
+// A tab with no visible field is hidden (desk `tab.js`: "show only if there is at
+// least one visible section or control"). Without this, a tab whose own
+// `depends_on` passes but whose every field is hidden (e.g. Item's Variants tab
+// on a non-variant item) would render an empty tab button.
+const tabHasVisibleField = (tab: Tab) =>
+	tab.sections.some((s) => !s.hidden && s.columns.some((c) => c.fields.some((f) => !f.hidden)));
+
 const visibleTabs = computed(() => {
-	const tabs = resolvedLayout.value.filter((tab) => !tab.hidden);
+	const tabs = resolvedLayout.value.filter((tab) => !tab.hidden && tabHasVisibleField(tab));
 	// With multiple tabs the strip is always shown, so an unlabelled tab would
 	// render a blank button — fall back to "Details" so every tab reads clearly.
 	const multipleTabs = tabs.length > 1;

@@ -19,7 +19,16 @@
 // Loading mirrors the legacy `FormFactory` (formview.js): re-render fresh docs in
 // place, fetch stale/missing ones, create-and-reroute for `new` names, and follow
 // renames via frappe.model.new_names.
-import { computed, onMounted, onUnmounted, ref, shallowRef, useTemplateRef, watch } from 'vue'
+import {
+	computed,
+	onMounted,
+	onUnmounted,
+	provide,
+	ref,
+	shallowRef,
+	useTemplateRef,
+	watch,
+} from 'vue'
 import PageShell from '@/components/PageShell.vue'
 import FormSidebar from '@/components/FormSidebar.vue'
 import { FormLayout } from '@framework/ui/FormLayout'
@@ -37,6 +46,10 @@ const doctype =
 const shell = useTemplateRef<InstanceType<typeof PageShell>>('shell')
 const formSidebar = useTemplateRef<HTMLDivElement>('formSidebar')
 const form = ref<any>(null)
+// Expose the frm to FormLayout descendants (e.g. HtmlField adopts the DOM node a
+// client script wrote into via `frm.fields_dict[f].$wrapper`). Provided as the ref
+// so consumers read `frm.value` once it's constructed in onMounted.
+provide('frm', form)
 
 // The Vue field view. The legacy `frm` stays the engine (script_manager, toolbar,
 // sidebar, save, watch_model_updates); `useFormBridge` renders its fields through
@@ -45,6 +58,7 @@ const form = ref<any>(null)
 // hidden (kept in the DOM so fields_dict/refresh_field/set_df_property still work).
 const bridge = shallowRef<FormBridge | null>(null)
 const formSchema = computed(() => bridge.value?.layout.value ?? [])
+debugger
 const formDoc = computed(() => bridge.value?.doc ?? null)
 
 // The docname the activity timeline renders for — set only once the doc is loaded
@@ -139,6 +153,7 @@ onMounted(() => {
 		// pristine meta) BEFORE the first refresh, so meta-script ops from the very
 		// first `refresh` are captured too.
 		bridge.value = useFormBridge(form.value)
+		debugger
 		loadDoc(props.name)
 	})
 })

@@ -39,19 +39,15 @@ const docname: string = props.frm.docname
 
 // Feed + realtime + email pagination (cached per doctype:docname; this component
 // is keyed by name in Form.vue, so it reconstructs per document).
-const {
-	activities,
-	loading: activityLoading,
-	reload,
-	paginate,
-} = useActivityTimeline(doctype, docname)
+const { activities, loading: activityLoading, reload } = useActivityTimeline(doctype, docname)
 // Re-wrap in a host-Vue computed: the composable's refs come from @framework/ui's
 // Vue instance, which the template type-checker won't auto-unwrap (dual Vue types).
 const loading = computed(() => activityLoading.value)
-// We render newest-first (legacy form-timeline order), so the oldest email sits at
-// the bottom — move the "load older" affordance there (the composable defaults to
-// an inline row above the oldest email, which assumes oldest-first).
-if (paginate?.loadMore) paginate.loadMore.position = 'bottom'
+// Pagination is intentionally NOT passed to <ActivityTimeline>: the form feed
+// flows in the page (not a fixed-height chat panel), and the paginate-gated
+// scroll-to-bottom-on-open (useTimelineScroll) would scroll the whole form down to
+// the timeline on open. Opting out keeps the page at the top; the feed shows the
+// loaded activity without a Load More control.
 
 // "Show all activity" vs communications-only (legacy `only_communication`).
 const onlyCommunication = ref(false)
@@ -420,7 +416,7 @@ watch(activities, computeBackfill)
 			v-html="documentEmailMessage"
 		/>
 
-		<ActivityTimeline :activities="displayFeed" :loading="loading" :paginate="paginate">
+		<ActivityTimeline :activities="displayFeed" :loading="loading">
 			<!-- Emails: reply / reply-all. -->
 			<template #item-email="{ activity }">
 				<EmailItem :email="activity">
