@@ -15,6 +15,10 @@ export { resolveLayout } from "./resolveLayout";
 export { applyMetaScript } from "./applyMetaScript";
 export type { MetaOp } from "./applyMetaScript";
 export { evaluateDependsOn } from "./dependsOn";
+// Desk `frm.set_query` bridge: the shell provides this key with a resolver that
+// reads `frm.fields_dict[f].get_query`; LinkField injects it (see Fields/types).
+export { LinkQueryKey } from "../Fields/types";
+export type { LinkQueryResolver, LinkQueryResult } from "../Fields/types";
 export {
   flt,
   formatNumber,

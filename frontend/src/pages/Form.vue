@@ -31,7 +31,7 @@ import {
 } from 'vue'
 import PageShell from '@/components/PageShell.vue'
 import FormSidebar from '@/components/FormSidebar.vue'
-import { FormLayout } from '@framework/ui/FormLayout'
+import { FormLayout, LinkQueryKey } from '@framework/ui/FormLayout'
 import { useFormBridge } from '@/composables/useFormBridge'
 import type { FormBridge } from '@/composables/useFormBridge'
 import FormTimeline from '@/components/FormTimeline.vue'
@@ -50,6 +50,23 @@ const form = ref<any>(null)
 // client script wrote into via `frm.fields_dict[f].$wrapper`). Provided as the ref
 // so consumers read `frm.value` once it's constructed in onMounted.
 provide('frm', form)
+
+// Bridge `frm.set_query` to the Vue LinkField: it stashes a `get_query` callback on
+// `frm.fields_dict[fieldname]`; the LinkField calls this resolver at fetch time to
+// get runtime `filters`/`query`. Evaluated per fetch (not cached) so it reflects the
+// live doc — matching desk, which re-runs get_query on every dropdown open. `row` is
+// the child row for grid cells (grid deferred, so parent doc for now).
+provide(LinkQueryKey, (fieldname: string, row?: Record<string, any>) => {
+	const frm = form.value
+	const field = frm?.fields_dict?.[fieldname]
+	const getQuery = field?.get_query
+	if (!getQuery) return undefined
+	const doc = row ?? frm.doc
+	// get_query is normally a fn(doc, cdt, cdn) → {filters, query}; tolerate an object.
+	const result =
+		typeof getQuery === 'function' ? getQuery(doc, doc?.doctype, doc?.name) : getQuery
+	return result || undefined
+})
 
 // The Vue field view. The legacy `frm` stays the engine (script_manager, toolbar,
 // sidebar, save, watch_model_updates); `useFormBridge` renders its fields through

@@ -3,6 +3,16 @@ import { InputLabelingProps } from "../types";
 export interface LinkProps extends InputLabelingProps {
   doctype: string;
   filters?: Record<string, unknown>;
+  /**
+   * Called at fetch time (each dropdown open/keystroke) to add a runtime query —
+   * extra `filters` (merged over `filters`, or a desk filter list that replaces
+   * them) and/or a custom `query` server method. This is how desk `frm.set_query`
+   * feeds a Link: it's re-evaluated per fetch so it always reflects the live doc.
+   */
+  resolveQuery?: () => {
+    filters?: Record<string, unknown> | unknown[];
+    query?: string;
+  } | undefined;
   creatable?: boolean;
   redirectable?: boolean;
   editable?: boolean;

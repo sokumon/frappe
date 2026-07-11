@@ -140,13 +140,28 @@ const showClear = computed(() => !props.disabled && !!model.value);
 const showRedirect = computed(() => props.redirectable && !!model.value);
 const showEdit = computed(() => props.editable && !!model.value);
 
+// Merge the runtime query's filters over the static (meta) filters. A desk filter
+// *list* (`[[doctype, field, op, value]]`) can't be spread onto a dict, so an array
+// result replaces wholesale (matches how desk hands the query straight through).
+function mergeFilters(
+	staticFilters: Record<string, unknown> | undefined,
+	runtimeFilters: Record<string, unknown> | unknown[] | undefined
+) {
+	if (runtimeFilters == null) return staticFilters;
+	if (Array.isArray(runtimeFilters)) return runtimeFilters;
+	return { ...(staticFilters ?? {}), ...runtimeFilters };
+}
+
 const loadOptions = (txt: string = "") => {
 	if (!props.doctype) return;
+	// Evaluate the runtime query now (not cached) so it reflects the current doc.
+	const runtime = props.resolveQuery?.();
 	options.update({
 		params: {
 			txt,
 			doctype: props.doctype,
-			filters: props.filters,
+			filters: mergeFilters(props.filters, runtime?.filters),
+			...(runtime?.query ? { query: runtime.query } : {}),
 		},
 	});
 	options.reload();

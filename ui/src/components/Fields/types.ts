@@ -87,3 +87,26 @@ export const ParentDocKey: InjectionKey<Ref<Record<string, any>> | null> =
 /** Writes a field's live value into the doc on every change. Pure state sync. */
 export const UpdateKey: InjectionKey<(fieldname: string, value: any) => void> =
   Symbol("FormLayoutUpdate");
+
+/** Runtime link-query produced by desk `frm.set_query`'s callback. */
+export interface LinkQueryResult {
+  /** Extra link filters — a dict (merged over meta filters) or a desk filter list. */
+  filters?: Record<string, any> | any[];
+  /** Custom server search method (`search_link`'s `query` arg), e.g. an item_query. */
+  query?: string;
+}
+
+/**
+ * Resolves a Link field's runtime query at *fetch time* (matching desk, which
+ * re-evaluates `get_query` on every dropdown open against the current doc).
+ * Provided by the desk shell — it reads `frm.fields_dict[fieldname].get_query`;
+ * absent in stories/CRM (Links then use only their static meta `filters`).
+ * `row` is the child row for a grid cell; omitted for a top-level field.
+ */
+export type LinkQueryResolver = (
+  fieldname: string,
+  row?: Record<string, any>
+) => LinkQueryResult | undefined;
+
+export const LinkQueryKey: InjectionKey<LinkQueryResolver> =
+  Symbol("FormLayoutLinkQuery");
