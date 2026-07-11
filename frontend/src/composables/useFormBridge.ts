@@ -45,6 +45,10 @@ const VALUELESS = new Set(['Button', 'Heading', 'HTML', 'Column Break', 'Section
 // Child-table fieldtypes: their value is an array of child rows, reconciled
 // structurally rather than committed as a scalar.
 const CHILD_TABLE = new Set(['Table', 'Table MultiSelect'])
+// Link fieldtypes that drive `fetch_from`: changing one fetches the linked doc and
+// populates target fields (legacy did this in the Link control; the Vue control
+// doesn't, so the bridge reapplies it — see fetchLinkTargets).
+const LINK_TYPES = new Set(['Link', 'Dynamic Link'])
 
 // Frappe DocField property name → portable FieldMeta property name. Runtime
 // `set_df_property`/`toggle_*` speak the DocField names; the Vue layout speaks
@@ -141,6 +145,56 @@ export function useFormBridge(frm: any): FormBridge {
 		return { on: { [event]: commit } }
 	}
 
+	// --- fetch_from -----------------------------------------------------------
+	// Reapplies desk's client-side `fetch_from` (legacy Link control's
+	// validate_link_and_fetch): on a Link change, read the fetch map the frm built
+	// from `fetch_from` docfields (`frm.fetch_dict`, keyed by "*" and the parent
+	// doctype → `{ target_field: source_field }`), pull those source fields off the
+	// linked doc, and set each target via `frappe.model.set_value` (so the mirror,
+	// scripts and dirty all fire). `target` is the parent doc or a child row.
+	function fetchLinkTargets(field: RawMetaField, value: any, target: Record<string, any>) {
+		const parent: string = target.doctype
+		const fetchMap: Record<string, string> = {
+			...(frm.fetch_dict['*']?.[field.fieldname] || {}),
+			...(frm.fetch_dict[parent]?.[field.fieldname] || {}),
+		}
+		const columns = Object.values(fetchMap)
+		if (!columns.length) return
+
+		// No value → clear the target fields (matches the legacy control).
+		if (!value) {
+			for (const targetField of Object.keys(fetchMap)) {
+				frappe.model.set_value(parent, target.name, targetField, '')
+			}
+			return
+		}
+
+		// Dynamic Link: the target doctype is named by another field (df.options).
+		const linkDoctype =
+			field.fieldtype === 'Dynamic Link' ? target[field.options as string] : field.options
+		if (!linkDoctype) return
+
+		frappe
+			.xcall('frappe.client.validate_link_and_fetch', {
+				doctype: linkDoctype,
+				docname: value,
+				fields_to_fetch: columns,
+			})
+			.then((res: any) => {
+				if (!res) return
+				const hasValue = Boolean(res.name)
+				for (const [targetField, sourceField] of Object.entries(fetchMap)) {
+					frappe.model.set_value(
+						parent,
+						target.name,
+						targetField,
+						hasValue ? res[sourceField] : ''
+					)
+				}
+			})
+			.catch((e: any) => console.error('[useFormBridge] fetch_from failed', e))
+	}
+
 	// --- Child-table structural reconcile -----------------------------------
 	// Fires only when the Grid reassigns the array (addRow/delete/reorder); cell
 	// edits mutate rows in place (no array-ref change) and commit via the decorator.
@@ -186,10 +240,27 @@ export function useFormBridge(frm: any): FormBridge {
 	// addition to the legacy watch_model_updates handler.
 	let disposed = false
 
+	// Docfield lookup (fieldtype/options) by `doctype:fieldname`, for the fetch_from
+	// hook — so it can tell a Link field (which drives a fetch) from any other change.
+	const dfByKey = new Map<string, RawMetaField>()
+	for (const df of frm.meta.fields || []) dfByKey.set(`${doctype}:${df.fieldname}`, df)
+	for (const [cdt, dfs] of Object.entries(childMetas))
+		for (const df of dfs) dfByKey.set(`${cdt}:${df.fieldname}`, df)
+
+	// Fetch on any Link change (user pick or programmatic set_value), matching desk
+	// which reruns fetch from the control's model listener regardless of source.
+	function maybeFetch(dt: string, fieldname: string, value: any, target: Record<string, any>) {
+		const df = dfByKey.get(`${dt}:${fieldname}`)
+		if (df && LINK_TYPES.has(df.fieldtype)) fetchLinkTargets(df, value, target)
+	}
+
 	// Parent scalars.
 	frappe.model.on(doctype, '*', (fieldname: string, value: any, d: any) => {
 		if (disposed || d.name !== frm.docname) return
-		if (!Array.isArray(frm.doc[fieldname]) && doc[fieldname] !== value) doc[fieldname] = value
+		if (!Array.isArray(frm.doc[fieldname]) && doc[fieldname] !== value) {
+			doc[fieldname] = value
+			maybeFetch(doctype, fieldname, value, frm.doc)
+		}
 	})
 
 	// Child rows (one handler per unique child doctype; matched by parentfield so
@@ -200,7 +271,10 @@ export function useFormBridge(frm: any): FormBridge {
 			const arr: Record<string, any>[] = doc[row.parentfield]
 			if (!arr) return
 			const clone = arr.find((r) => r.name === row.name)
-			if (clone && clone[fieldname] !== value) clone[fieldname] = value
+			if (clone && clone[fieldname] !== value) {
+				clone[fieldname] = value
+				maybeFetch(cdt, fieldname, value, row)
+			}
 		})
 	}
 
