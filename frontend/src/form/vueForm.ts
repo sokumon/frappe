@@ -37,6 +37,100 @@ class FormController {
 	}
 }
 
+const TABLE_TYPES = new Set(['Table', 'Table MultiSelect'])
+
+// Detached jQuery node — a safe sink for deferred subsystems (dashboard/grid) whose
+// legacy code renders into / chains off DOM we don't show.
+function noopNode(): any {
+	return $('<div>')
+}
+
+// --- Dashboard stub (Tier-2, deferred) ---------------------------------------
+// erpnext calls `frm.dashboard.*` heavily in `refresh` (add_indicator, add_progress,
+// set_headline_alert, stats_area_row.append, …). There is no Vue dashboard region
+// yet, so a real port would render nowhere — but `frm.dashboard` being null would
+// THROW and break the whole refresh chain. This Proxy makes every access safe:
+// known DOM props are detached jQuery nodes; any other member is a no-op method
+// returning a node (so calls and chains don't throw). Rendering is simply skipped.
+function makeDashboardStub(): any {
+	const node = noopNode()
+	const known: Record<string, any> = {
+		wrapper: node,
+		stats_area: node,
+		stats_area_row: node,
+		heatmap: null,
+		refresh() {},
+		reset() {},
+		show() {},
+		hide() {},
+		clear_headline() {},
+		set_headline() {},
+		set_headline_alert() {},
+		add_comment() {},
+		clear_comment() {},
+		hide_progress() {},
+		render_graph() {},
+		after_refresh() {},
+		add_transactions() {},
+		add_indicator: () => noopNode(),
+		add_section: () => noopNode(),
+		add_progress: () => noopNode(),
+		show_progress: () => noopNode(),
+		make_section: () => noopNode(),
+	}
+	return new Proxy(known, {
+		get: (t, p: string) => (p in t ? t[p] : () => noopNode()),
+	})
+}
+
+// --- Grid stub (Tier-2, deferred) --------------------------------------------
+// Child tables RENDER + edit via the Vue `TableField`, but `frm.fields_dict[f].grid.*`
+// SCRIPTING (set_column_disp, update_docfield_property, toggle_*, get_selected_children,
+// …) is deferred. This Proxy no-ops those so grid scripts don't throw. `get_field`
+// returns a STABLE per-field stub so `grid.get_field(x).get_query = …` (child
+// set_query) at least persists (child-cell resolver wiring is future work).
+function makeGridStub(df: any, frm: any): any {
+	const cdt = df.options
+	const fieldStubs: Record<string, any> = {}
+	const known: Record<string, any> = {
+		doctype: cdt,
+		df,
+		grid_rows: [],
+		grid_rows_by_docname: {},
+		docfields: [],
+		fields_map: {},
+		wrapper: noopNode(),
+		cannot_add_rows: false,
+		get_field: (fn: string) =>
+			(fieldStubs[fn] ??= { df: {}, fieldname: fn, get_query: undefined, refresh() {} }),
+		get_data: () => frm.doc?.[df.fieldname] || [],
+		get_selected_children: () => [],
+		get_selected: () => [],
+		get_row: () => ({}),
+	}
+	return new Proxy(known, {
+		get: (t, p: string) => (p in t ? t[p] : () => {}),
+	})
+}
+
+// --- Sidebar stub (Tier-2, deferred) -----------------------------------------
+// The Vue-native sidebar rebuild is future work; only the title is Vue today. But
+// scripts read `frm.sidebar.*` (reload_docinfo, refresh, image_wrapper, …) — a null
+// would throw. No-op stub keeps them safe until the real sidebar lands.
+function makeSidebarStub(): any {
+	const node = noopNode()
+	const known: Record<string, any> = {
+		sidebar: node,
+		image_wrapper: node,
+		refresh() {},
+		reload_docinfo() {},
+		add_user_action: () => noopNode(),
+	}
+	return new Proxy(known, {
+		get: (t, p: string) => (p in t ? t[p] : () => noopNode()),
+	})
+}
+
 export class VueForm {
 	docname: string
 	doctype: string
@@ -139,6 +233,12 @@ export class VueForm {
 		this.page = this.wrapper.page
 		this.layout_main = this.page.main?.get?.(0)
 
+		// Dashboard + sidebar are deferred (no Vue region yet), but scripts call
+		// `frm.dashboard.*` / `frm.sidebar.*` in refresh — a null would throw. Stub
+		// them (no-op, safe) so the refresh chain survives.
+		this.dashboard = makeDashboardStub()
+		this.sidebar = makeSidebarStub()
+
 		// The Toolbar drives the Vue Navbar via the page bridge: primary action
 		// (Save/Submit/Update), the ⋯ menu (Delete/Duplicate/Rename/Print…), action
 		// icons and the status indicator. Its constructor calls refresh() → sets the
@@ -185,28 +285,55 @@ export class VueForm {
 	build_fields_dict() {
 		const frm = this
 		for (const df of this.meta.fields || []) {
+			const fieldname = df.fieldname
 			const field: any = {
 				df,
 				frm,
-				fieldname: df.fieldname,
+				fieldname,
 				fieldtype: df.fieldtype,
 				doctype: df.parent,
+				// Property reads scripts do on the control (not always via `.df`).
+				get options() {
+					return df.options
+				},
+				get label() {
+					return df.label
+				},
 				// no-op: Vue owns rendering. Kept so legacy `field.refresh(fn)` /
 				// `frm.refresh_field(fn)` don't throw.
 				refresh() {},
+				refresh_input() {},
 				get_value() {
-					return frm.doc?.[df.fieldname]
+					return frm.doc?.[fieldname]
 				},
-				grid: {
-					get_field: function(fieldname: string) {
-						return {
-							get_query: function(){
-								console.log("Hello from grid.get_field.get_query()	")
-							}
-						}
-					}
-				}
+				// Control mutators scripts call (`frm.fields_dict[x].set_value(...)`,
+				// `set_input`, `toggle`, …). Route value sets through the model so the Vue
+				// view updates (set_input has no "no-trigger" path here — acceptable); the
+				// rest are safe no-ops. `get_query` is stashed by `frm.set_query`.
+				set_value(v: any) {
+					return frappe.model.set_value(frm.doctype, frm.docname, fieldname, v)
+				},
+				set_input(v: any) {
+					return frappe.model.set_value(frm.doctype, frm.docname, fieldname, v)
+				},
+				toggle(show: boolean) {
+					frm.toggle_display(fieldname, show)
+				},
+				hide() {
+					frm.toggle_display(fieldname, false)
+				},
+				// Routed so it actually updates the Vue label (used by set_currency_labels).
+				set_label(label: string) {
+					frm.set_df_property(fieldname, 'label', label)
+				},
+				set_description() {},
+				set_new_description() {},
+				set_focus() {},
+				set_empty() {},
 			}
+			// Child tables get a grid stub (scripting deferred); other fields don't, so
+			// scripts' `if (field.grid)` table-detection stays correct.
+			if (TABLE_TYPES.has(df.fieldtype)) field.grid = makeGridStub(df, frm)
 			// DOM escape hatch. The legacy control always had a `$wrapper` jQuery node,
 			// and client scripts reach into it: HTML fields inject content via
 			// `fields_dict[f].$wrapper.html(...)` (erpnext Item render_item_prices),
@@ -673,6 +800,122 @@ export class VueForm {
 		// dashboard deferred; keep the call safe.
 		this.dashboard?.set_headline_alert?.(txt, color)
 	}
+
+	// --- currency labels (ported) — transaction forms call these in refresh ------
+	set_currency_labels(fields_list: string[], currency: string, parentfield?: string) {
+		if (!currency) return
+		const me = this
+		const doctype = parentfield ? this.fields_dict[parentfield].grid.doctype : this.doc.doctype
+		const field_label_map: Record<string, string> = {}
+		const grid_field_label_map: Record<string, string> = {}
+		fields_list.forEach((fname) => {
+			const docfield = frappe.meta.docfield_map[doctype]?.[fname]
+			if (docfield) {
+				if (docfield._original_label === undefined) docfield._original_label = docfield.label
+				const label = __(docfield._original_label || '', null, docfield.parent)
+				if (parentfield) grid_field_label_map[doctype + '-' + fname] = label.trim() + ' (' + currency + ')'
+				else field_label_map[fname] = label.trim() + ' (' + currency + ')'
+			}
+		})
+		for (const fname in field_label_map) me.fields_dict[fname]?.set_label(field_label_map[fname])
+		for (const key in grid_field_label_map) {
+			const fname = key.split('-')[1]
+			// grid deferred: update_docfield_property is a no-op stub.
+			me.fields_dict[parentfield!].grid.update_docfield_property(fname, 'label', grid_field_label_map[key])
+		}
+	}
+
+	reset_currency_labels(fields: string[], parentfield?: string) {
+		if (!fields.length) return
+		const doctype = parentfield ? this.fields_dict[parentfield].grid.doctype : this.doc.doctype
+		fields.forEach((field) => {
+			const docfield = frappe.meta.docfield_map[doctype]?.[field]
+			if (docfield) {
+				if (docfield._original_label === undefined) docfield._original_label = docfield.label
+				const label = __(docfield._original_label || '', null, docfield.parent)
+				if (parentfield)
+					this.fields_dict[parentfield].grid.update_docfield_property(field, 'label', label)
+				else this.fields_dict[field]?.set_label(label)
+			}
+		})
+	}
+
+	// Sets a link/indicator formatter on the docfield meta (used by list/grid render).
+	// Harmless for the form; ported so the call doesn't throw.
+	set_indicator_formatter(fieldname: string, get_color: any, get_text?: any) {
+		let doctype: string | undefined
+		if (frappe.meta.docfield_map[this.doctype][fieldname]) {
+			doctype = this.doctype
+		} else {
+			frappe.meta.get_table_fields(this.doctype, true).every((df: any) => {
+				if (frappe.meta.docfield_map[df.options]?.[fieldname]) {
+					doctype = df.options
+					return false
+				}
+				return true
+			})
+		}
+		if (!doctype) return
+		frappe.meta.docfield_map[doctype][fieldname].formatter = function (
+			value: any,
+			df: any,
+			_options: any,
+			doc: any
+		) {
+			if (!value) return value
+			let label
+			if (get_text) label = get_text(doc)
+			else if (frappe.form.link_formatters[df.options])
+				label = frappe.form.link_formatters[df.options](value, doc, df)
+			else label = value
+			const escaped_name = encodeURIComponent(value)
+			return `<a class="indicator ${get_color(doc || {})}" href="/desk/${frappe.router.slug(
+				df.options
+			)}/${escaped_name}" data-doctype="${df.options}" data-name="${frappe.utils.escape_html(
+				value
+			)}">${label}</a>`
+		}
+	}
+
+	change_custom_button_type(label: string, group: string, type: string) {
+		this.page.change_inner_button_type?.(label, group, type)
+	}
+
+	remove_custom_button(label: string, group?: string) {
+		this.page.remove_inner_button?.(label, group)
+		delete this.custom_buttons[label]
+	}
+
+	// Child-table helpers scripts occasionally use (grid rendering works; these read
+	// the model directly, so they don't depend on the deferred grid scripting).
+	get_selected() {
+		// Grid selection is deferred; return an empty selection map (shape parity).
+		return {}
+	}
+
+	get_sum(table: string, fieldname: string) {
+		const rows: any[] = this.doc[table] || []
+		return rows.reduce((sum, row) => sum + (parseFloat(row[fieldname]) || 0), 0)
+	}
+
+	update_in_all_rows(table: string, field: string, value: any) {
+		const rows: any[] = this.doc[table] || []
+		rows.forEach((row) => {
+			if (row[field] !== value)
+				frappe.model.set_value(row.doctype, row.name, field, value)
+		})
+	}
+
+	has_import_file() {
+		return false
+	}
+
+	add_web_link(path?: string, label?: string) {
+		// sidebar (add_user_action) is deferred; keep the call safe.
+		if (!this.sidebar) return
+		this.sidebar.add_user_action?.(__(label || 'See on Website'), () => {})
+	}
+	sidebar: any = null
 
 	// --- SAVE pipeline (ported from form.js) -------------------------------
 	// The toolbar's primary action calls these. `frappe.ui.form.save` is the
