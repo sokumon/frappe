@@ -24,6 +24,7 @@ import { installDb } from "@/boot/db"
 import { installAssets } from "@/boot/assets"
 import { installLike } from "@/boot/like"
 import { installDefaults } from "@/boot/defaults"
+import { installPageview } from "@/boot/pageview"
 
 // The Vue-native form engine (frappe.ui.form.on / Controller / Form /
 // QuickEntryForm). It replaces the removed `form_vue_shell` bundle and MUST be
@@ -88,6 +89,16 @@ function installLikeOnce() {
     likeInstalled = true
 }
 
+// frappe.views.pageview.with_page (data-loading half of pageview.js). Page.vue
+// calls it to resolve a Page doc, then renders itself; the legacy rendering half
+// (show / frappe.views.Page / show_message_page) is Vue-replaced and not ported.
+let pageviewInstalled = false
+function installPageviewOnce() {
+    if (pageviewInstalled) return
+    installPageview()
+    pageviewInstalled = true
+}
+
 // frappe.call / frappe.xcall / frappe.request.* — modernized transport
 // (createResource over native fetch) replacing request.js from the removed
 // desk.bundle. Registers $(document).ajaxSend at eval (needs jQuery), and
@@ -131,6 +142,7 @@ function installFormEngineOnce() {
     installUserOnce()
     installDbOnce()
     installLikeOnce()
+    installPageviewOnce()
     installForm()
     formEngineInstalled = true
 }
@@ -158,6 +170,7 @@ async function appendScripts(scripts) {
             installUserOnce()
             installDbOnce()
             installLikeOnce()
+            installPageviewOnce()
         }
         // Install the form engine before the first app bundle that depends on it.
         if (script.includes("erpnext") || script.includes("india_compliance")) {
