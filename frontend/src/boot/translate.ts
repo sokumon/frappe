@@ -13,6 +13,8 @@
 // have run — so eval order vs. provide is safe. Guards window.frappe itself so
 // it doesn't depend on provide having run first.
 
+import { format } from "@/boot/format"
+
 declare const $: any
 
 export function installTranslate() {
@@ -35,7 +37,7 @@ export function installTranslate() {
 		}
 
 		if (replace && typeof replace === "object") {
-			translated_text = $.format(translated_text, replace)
+			translated_text = format(translated_text, replace)
 		}
 		return translated_text
 	}

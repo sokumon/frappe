@@ -17,6 +17,8 @@ import { installTranslate } from "@/boot/translate"
 import { installModel } from "@/model"
 import { installUser } from "@/boot/user"
 import { installUtils } from "@/utils"
+import { installRequest } from "@/boot/request"
+import { installFormat } from "@/boot/format"
 import { installDefaults } from "@/boot/defaults"
 
 // The Vue-native form engine (frappe.ui.form.on / Controller / Form /
@@ -39,6 +41,9 @@ let utilsInstalled = false
 function installUtilsOnce() {
     if (utilsInstalled) return
     installUtils()
+    // Attach $.format for any legacy/erpnext caller (translate.ts uses the
+    // imported format() directly). Needs jQuery, present at this seam.
+    installFormat()
     utilsInstalled = true
 }
 
@@ -47,6 +52,17 @@ function installModelOnce() {
     if (modelInstalled) return
     installModel()
     modelInstalled = true
+}
+
+// frappe.call / frappe.xcall / frappe.request.* — modernized transport
+// (createResource over native fetch) replacing request.js from the removed
+// desk.bundle. Registers $(document).ajaxSend at eval (needs jQuery), and
+// request.call uses frappe.model/utils/dom at runtime — all present at this seam.
+let requestInstalled = false
+function installRequestOnce() {
+    if (requestInstalled) return
+    installRequest()
+    requestInstalled = true
 }
 
 // frappe.user_info / frappe.user.* / session_alive heartbeat (verbatim port of
@@ -65,6 +81,7 @@ let formEngineInstalled = false
 function installFormEngineOnce() {
     if (formEngineInstalled) return
     installUtilsOnce()
+    installRequestOnce()
     installModelOnce()
     installUserOnce()
     installForm()
@@ -87,6 +104,7 @@ async function appendScripts(scripts) {
         // desk.bundle order (model.js loaded before controls.bundle).
         if (!script.includes("libs")) {
             installUtilsOnce()
+            installRequestOnce()
             installModelOnce()
             installUserOnce()
         }
