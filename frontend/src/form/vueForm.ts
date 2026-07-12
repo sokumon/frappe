@@ -248,7 +248,54 @@ export class VueForm {
 		this.script_manager.setup()
 		this.watch_model_updates()
 
+		// Follow local -> server-name renames (new-doc save). model/sync.ts's
+		// rename_after_save deletes the old local doc and fires the "rename" event;
+		// without this listener `frm.docname` would stay the dead new-xxx name and
+		// the next refresh()'s frappe.get_doc() returns undefined.
+		this.setup_notify_on_rename()
+
 		this.setup_done = true
+	}
+
+	// Port of form.js setup_notify_on_rename / rename_notify. Keeps frm.docname in
+	// sync when a doc is renamed (chiefly the new-doc save: new-xxx -> real name).
+	setup_notify_on_rename() {
+		$(document).on('rename', (_ev: any, dt: string, old_name: string, new_name: string) => {
+			if (dt == this.doctype) this.rename_notify(dt, old_name, new_name)
+		})
+
+		frappe.realtime?.on?.('doc_rename', (data: any) => {
+			// the current form has been renamed by some backend process
+			if (data.doctype == this.doctype && data.old == this.docname) {
+				frappe.set_route('Form', this.doctype, data.new)
+			}
+		})
+	}
+
+	rename_notify(dt: string, old: string, name: string) {
+		if (this.meta.istable) return
+
+		if (this.docname == old) this.docname = name
+		else return
+
+		// move the docfield copy + opendocs entry to the new name
+		if (this.opendocs[old] && frappe.meta.docfield_copy?.[dt]) {
+			frappe.meta.docfield_copy[dt][name] = frappe.meta.docfield_copy[dt][old]
+			delete frappe.meta.docfield_copy[dt][old]
+		}
+
+		delete this.opendocs[old]
+		this.opendocs[name] = true
+
+		if (this.meta.in_dialog || !this.in_form) return
+
+		// Update the URL to the saved doc's real name. The legacy re_route/
+		// get_sub_path back-nav guard is unnecessary here — Form.vue's loadDoc
+		// reroutes via frappe.model.new_names if the dead local route is revisited.
+		// Skip routing when the doc was created from a Form view's Link field.
+		if (!frappe._from_link?.field_obj?.frm) {
+			frappe.set_route('Form', this.doctype, name)
+		}
 	}
 
 	viewers: any = null
