@@ -21,6 +21,10 @@ export class FrappeApp {
 			this.set_globals()
 			this.sync_pages()
 			this.setup_moment()
+			// Populate frappe.defaults._user_permissions from boot (desk.js
+			// Application.load_user_permissions). Without this, frappe.defaults'
+			// user-permission filtering silently no-ops.
+			frappe.defaults.load_user_permission_from_boot()
 
 			frappe.boot.setup_complete = frappe.boot.sysdefaults["setup_complete"]
 			frappe.user.name = frappe.boot.user.name

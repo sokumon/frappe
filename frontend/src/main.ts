@@ -17,6 +17,7 @@ import { installTranslate } from "@/boot/translate"
 import { installModel } from "@/model"
 import { installUser } from "@/boot/user"
 import { installUtils } from "@/utils"
+import { installDefaults } from "@/boot/defaults"
 
 // The Vue-native form engine (frappe.ui.form.on / Controller / Form /
 // QuickEntryForm). It replaces the removed `form_vue_shell` bundle and MUST be
@@ -76,7 +77,6 @@ async function appendScripts(scripts) {
     const filteredScripts = scripts.filter(script =>
         script.includes("libs") ||
         script.includes("controls") ||
-        script.includes("report") ||
         script.includes("erpnext") ||
         script.includes("india_compliance")
     )
@@ -93,7 +93,21 @@ async function appendScripts(scripts) {
         // Install the form engine before the first app bundle that depends on it.
         if (script.includes("erpnext") || script.includes("india_compliance")) {
             installFormEngineOnce()
+            frappe.form =  {
+                link_formatters: {}
+            }
+            frappe.widget = {
+                widget_factory: {
+                    number_card: class NumberCard {
+                        constructor(opts:any) {
+
+                        }
+                    }
+                }
+
+            }
         }
+
         await new Promise<void>((resolve, reject) => {
             console.log(script)
             const scriptEl = document.createElement('script')
@@ -183,6 +197,11 @@ async function initFrappe() {
     // Replaces provide.js from the removed desk.bundle ("framework bundle").
     installProvide()
     window.frappe = { ...window.frappe, ...values }
+    // frappe.defaults (user/global default + user-permission accessors). Pure
+    // namespace assignment; reads frappe.model/boot only at call time, so it
+    // sits with the other dependency-free boot namespaces. Ported from
+    // defaults.js of the removed desk.bundle.
+    installDefaults()
     // @framework/ui's FormLayout number/currency fields read framework formatting
     // defaults from `window.sysdefaults` (getFormatDefaults). The legacy desk keeps
     // them on frappe.boot.sysdefaults; publish them on window for the Vue fields.
