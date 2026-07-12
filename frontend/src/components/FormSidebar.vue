@@ -13,7 +13,9 @@
 // (Vue-native <FormTags>), shared, likes, follow, created/modified/views.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Avatar, Button, Tooltip } from 'frappe-ui'
+import { FileUploadDialog } from '@framework/ui/FileUpload'
 import { sidebarVersion, bumpSidebar } from '@/form/sidebarStore'
+import { createAttachmentTransport } from '@/form/attachmentTransport'
 import FormTags from '@/components/FormTags.vue'
 import LucidePaperclip from '~icons/lucide/paperclip'
 import LucideUsers from '~icons/lucide/users'
@@ -92,17 +94,7 @@ const canEditImage = computed(() => {
 })
 function uploadImage() {
 	if (!canEditImage.value) return
-	new frappe.ui.FileUploader({
-		doctype: props.frm.doctype,
-		docname: props.frm.docname,
-		frm: props.frm,
-		folder: 'Home/Attachments',
-		restrictions: { allowed_file_types: ['image/*'] },
-		make_attachments_public: props.frm.meta.make_attachments_public,
-		on_success: (file_doc: any) => {
-			props.frm.set_value(imageField.value, file_doc.file_url).then(() => props.frm.save())
-		},
-	})
+	openUploader({ fieldname: imageField.value, imageOnly: true })
 }
 function removeImage() {
 	const frm = props.frm
@@ -157,7 +149,39 @@ function fileUrl(a: any) {
 	return props.frm.attachments.get_file_url(a)
 }
 function addAttachment() {
-	props.frm.attachments.new_attachment()
+	openUploader()
+}
+
+// --- upload dialog (@framework/ui FileUploadDialog) -------------------------
+// A custom transport attaches each file to this document (doctype/docname). The
+// facade's new_attachment (called by scripts) is routed here via `_openUploader`.
+const uploadOpen = ref(false)
+const uploadImageOnly = ref(false)
+const pendingFieldname = ref<string | null>(null)
+const transport = computed(() =>
+	createAttachmentTransport(props.frm.doctype, () => props.frm.docname)
+)
+const uploadRestrictions = computed(() => {
+	const max = props.frm?.meta?.max_attachments
+	if (!max) return {}
+	return { max_number_of_files: Math.max(max - attachments.value.length, 1) }
+})
+function openUploader(opts: { fieldname?: string; imageOnly?: boolean } = {}) {
+	pendingFieldname.value = opts.fieldname || null
+	uploadImageOnly.value = !!opts.imageOnly
+	uploadOpen.value = true
+}
+function onUploaded(results: any[]) {
+	const fieldname = pendingFieldname.value
+	pendingFieldname.value = null
+	// Re-fetch docinfo so the new File(s) appear in the attachments list.
+	props.frm.sidebar?.reload_docinfo?.()
+	// Image / attach field: point it at the uploaded file and save (legacy parity).
+	if (fieldname && results?.length) {
+		props.frm
+			.set_value(fieldname, results[results.length - 1].file_url)
+			.then(() => props.frm.save())
+	}
 }
 function removeAttachment(a: any) {
 	frappe.confirm(__('Are you sure you want to delete the attachment?'), () => {
@@ -335,10 +359,14 @@ function onDocinfoUpdate({ doc, key, action = 'update' }: any) {
 
 onMounted(() => {
 	frappe.realtime?.on?.('docinfo_update', onDocinfoUpdate)
+	// Route the facade's new_attachment (scripts + image upload) to the Vue dialog.
+	if (props.frm?.attachments) props.frm.attachments._openUploader = openUploader
 	if (props.frm?.doc) bumpSidebar(props.frm.doctype, props.frm.docname)
 })
 onBeforeUnmount(() => {
 	frappe.realtime?.off?.('docinfo_update', onDocinfoUpdate)
+	if (props.frm?.attachments?._openUploader === openUploader)
+		props.frm.attachments._openUploader = null
 })
 
 // Doc-to-doc navigation keeps this component mounted (Form.vue doesn't key it) and
@@ -357,6 +385,18 @@ watch(version, () => {
 
 <template>
 	<div v-if="frm" class="form-sidebar flex flex-col gap-4 p-4 text-sm">
+		<!-- @framework/ui upload dialog (attachments + user image). A custom transport
+			 attaches each file to this document. -->
+		<FileUploadDialog
+			v-model:open="uploadOpen"
+			:transport="transport"
+			folder="Home/Attachments"
+			:image-only="uploadImageOnly"
+			:restrictions="uploadRestrictions"
+			:multiple="!uploadImageOnly"
+			@committed="onUploaded"
+		/>
+
 		<!-- image -->
 		<div v-if="imageField" class="flex flex-col items-center gap-2">
 			<div class="group relative">

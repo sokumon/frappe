@@ -121,14 +121,22 @@ class AttachmentsFacade {
 			},
 		})
 	}
+	// Opener registered by FormSidebar.vue so this routes to the @framework/ui
+	// <FileUploadDialog>. Falls back to the legacy uploader if the sidebar isn't
+	// mounted (e.g. a script uploads while the sidebar is hidden).
+	_openUploader: ((opts: { fieldname?: string; imageOnly?: boolean }) => void) | null = null
 	new_attachment(fieldname?: string) {
+		this.fieldname = fieldname || this.fieldname
+		if (this._openUploader) {
+			this._openUploader({ fieldname: this.fieldname })
+			return
+		}
 		if (this.dialog) this.dialog.$wrapper?.remove()
 		const restrictions: any = {}
 		if (this.frm.meta.max_attachments) {
 			restrictions.max_number_of_files =
 				this.frm.meta.max_attachments - this.get_attachments().length
 		}
-		this.fieldname = fieldname || this.fieldname
 		new frappe.ui.FileUploader({
 			doctype: this.frm.doctype,
 			docname: this.frm.docname,
