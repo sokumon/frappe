@@ -67,6 +67,36 @@ frappe.xcall = function (method, params, type, opts = {}) {
 	});
 };
 
+// jqXHR-compat shim. The legacy $.ajax return exposed .done()/.fail()/.always()
+// (and .abort()); a handful of callers still chain them on the frappe.call
+// return (db.get_doc, file_manager, kanban_board, report_view, translation_manager,
+// print_format_builder). Map them onto the native Promise, returning the same
+// promise so they stay chainable. Each handler also settles the other branch so a
+// lone .done()/.always() never triggers an unhandled-rejection warning.
+function as_jqxhr(promise) {
+	if (!promise) return promise;
+	if (!promise.done)
+		promise.done = function (fn) {
+			promise.then((d) => fn && fn(d), () => {});
+			return promise;
+		};
+	if (!promise.fail)
+		promise.fail = function (fn) {
+			promise.then(undefined, (e) => fn && fn(e));
+			return promise;
+		};
+	if (!promise.always)
+		promise.always = function (fn) {
+			promise.then(
+				(d) => fn && fn(d),
+				(e) => fn && fn(e)
+			);
+			return promise;
+		};
+	if (!promise.abort) promise.abort = function () {};
+	return promise;
+}
+
 // generic server call (call page, object)
 frappe.call = function (opts) {
 	if (!frappe.is_online()) {
@@ -137,7 +167,7 @@ frappe.call = function (opts) {
 
 	// debouce if required
 	if (opts.debounce && frappe.request.is_fresh(args, opts.debounce)) {
-		return Promise.resolve();
+		return as_jqxhr(Promise.resolve());
 	}
 
 	return frappe.request.call({
@@ -476,7 +506,7 @@ frappe.request.call = function (opts) {
 		} finally {
 			process_always(data);
 		}
-		return Promise.resolve(data);
+		return as_jqxhr(Promise.resolve(data));
 	}
 
 	// ---- modern path: createResource over a native-fetch resourceFetcher ----
@@ -545,7 +575,7 @@ frappe.request.call = function (opts) {
 			process_always(null);
 		}
 	};
-	return promise;
+	return as_jqxhr(promise);
 };
 
 // ajax_count bookkeeping for after_ajax / after_server_call. jQuery's

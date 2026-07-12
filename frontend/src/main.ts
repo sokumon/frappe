@@ -19,6 +19,10 @@ import { installUser } from "@/boot/user"
 import { installUtils } from "@/utils"
 import { installRequest } from "@/boot/request"
 import { installFormat } from "@/boot/format"
+import { installDom } from "@/boot/dom"
+import { installDb } from "@/boot/db"
+import { installAssets } from "@/boot/assets"
+import { installLike } from "@/boot/like"
 import { installDefaults } from "@/boot/defaults"
 
 // The Vue-native form engine (frappe.ui.form.on / Controller / Form /
@@ -54,6 +58,36 @@ function installModelOnce() {
     modelInstalled = true
 }
 
+// frappe.dom.* + frappe.run_serially / is_online / scrub / get_modal / freeze...
+// (verbatim port of dom.js). request.ts calls frappe.dom.freeze + frappe.is_online
+// at runtime, so dom must install BEFORE request. Uses $(window).on at eval.
+let domInstalled = false
+function installDomOnce() {
+    if (domInstalled) return
+    installDom()
+    domInstalled = true
+}
+
+// frappe.require + frappe.assets (AssetManager) — verbatim port of assets.js.
+// frappeApp.load_bootinfo (bootstrap) calls frappe.assets.clear/init_local_storage,
+// and frappe.require lazy-loads bundles at runtime. execute() uses frappe.dom, so
+// install after dom.
+let assetsInstalled = false
+function installAssetsOnce() {
+    if (assetsInstalled) return
+    installAssets()
+    assetsInstalled = true
+}
+
+// frappe.ui.is_liked / get_liked_by (pure helpers from like.js). Consumed by
+// FormSidebar.vue + legacy list views; read frappe.session at call time.
+let likeInstalled = false
+function installLikeOnce() {
+    if (likeInstalled) return
+    installLike()
+    likeInstalled = true
+}
+
 // frappe.call / frappe.xcall / frappe.request.* — modernized transport
 // (createResource over native fetch) replacing request.js from the removed
 // desk.bundle. Registers $(document).ajaxSend at eval (needs jQuery), and
@@ -63,6 +97,15 @@ function installRequestOnce() {
     if (requestInstalled) return
     installRequest()
     requestInstalled = true
+}
+
+// frappe.db.* — thin frappe.call/xcall wrappers (verbatim port of db.js). Uses
+// frappe.call + frappe.model.sync at runtime, so it installs after request+model.
+let dbInstalled = false
+function installDbOnce() {
+    if (dbInstalled) return
+    installDb()
+    dbInstalled = true
 }
 
 // frappe.user_info / frappe.user.* / session_alive heartbeat (verbatim port of
@@ -81,9 +124,13 @@ let formEngineInstalled = false
 function installFormEngineOnce() {
     if (formEngineInstalled) return
     installUtilsOnce()
+    installDomOnce()
+    installAssetsOnce()
     installRequestOnce()
     installModelOnce()
     installUserOnce()
+    installDbOnce()
+    installLikeOnce()
     installForm()
     formEngineInstalled = true
 }
@@ -104,9 +151,13 @@ async function appendScripts(scripts) {
         // desk.bundle order (model.js loaded before controls.bundle).
         if (!script.includes("libs")) {
             installUtilsOnce()
+            installDomOnce()
+            installAssetsOnce()
             installRequestOnce()
             installModelOnce()
             installUserOnce()
+            installDbOnce()
+            installLikeOnce()
         }
         // Install the form engine before the first app bundle that depends on it.
         if (script.includes("erpnext") || script.includes("india_compliance")) {
