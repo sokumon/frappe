@@ -16,6 +16,7 @@ import { installProvide } from "@/boot/provide"
 import { installTranslate } from "@/boot/translate"
 import { installModel } from "@/model"
 import { installUser } from "@/boot/user"
+import { installUtils } from "@/utils"
 
 // The Vue-native form engine (frappe.ui.form.on / Controller / Form /
 // QuickEntryForm). It replaces the removed `form_vue_shell` bundle and MUST be
@@ -28,6 +29,18 @@ import { installUser } from "@/boot/user"
 // frappe.provide at eval (the merges use native Object.assign), and must land
 // before erpnext + frappeApp.load_bootinfo (frappe.model.sync). The form
 // engine's controllers reference frappe.model at runtime, so model goes in first.
+// The frappe util grab-bag (cint/cstr/flt/format_currency, frappe.utils.*,
+// frappe.datetime.*, frappe.urllib, frappe.contacts, avatars, ...) — verbatim
+// ports of utils/*.js from the removed desk.bundle. Uses jQuery ($.extend) at
+// eval, so after libs; defines primitives model/user/erpnext use at runtime, so
+// it goes in FIRST at this seam, before model + user.
+let utilsInstalled = false
+function installUtilsOnce() {
+    if (utilsInstalled) return
+    installUtils()
+    utilsInstalled = true
+}
+
 let modelInstalled = false
 function installModelOnce() {
     if (modelInstalled) return
@@ -50,6 +63,7 @@ function installUserOnce() {
 let formEngineInstalled = false
 function installFormEngineOnce() {
     if (formEngineInstalled) return
+    installUtilsOnce()
     installModelOnce()
     installUserOnce()
     installForm()
@@ -72,6 +86,7 @@ async function appendScripts(scripts) {
         // controls/report may reference frappe.model. Mirrors the original
         // desk.bundle order (model.js loaded before controls.bundle).
         if (!script.includes("libs")) {
+            installUtilsOnce()
             installModelOnce()
             installUserOnce()
         }
