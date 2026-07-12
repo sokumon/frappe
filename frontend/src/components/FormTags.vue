@@ -25,10 +25,15 @@ function docinfo(): any {
 	}
 }
 
-// Source of truth: docinfo.tags (comma string), falling back to the doc's _user_tags.
+// Source of truth: the doc's own `_user_tags` column (a standard field loaded with
+// every doc, and what add_tag/remove_tag write). Prefer it over `docinfo.tags`:
+// get_docinfo's get_tags is gated by a cached `has_tags(doctype)` that returns a
+// stale `false` right after a doctype's first tag, yielding "" on reload — which the
+// old `??` (only null/undefined) wouldn't fall through, so the tag vanished. `||`
+// falls through an empty string.
 const currentTags = computed<string[]>(() => {
 	version.value
-	const raw = docinfo().tags ?? props.frm?.doc?._user_tags ?? ''
+	const raw = props.frm?.doc?._user_tags || docinfo().tags || ''
 	return String(raw)
 		.split(',')
 		.map((t) => t.trim())
@@ -80,6 +85,16 @@ async function onQuery(q: string) {
 		fetched.value = (r || []).filter((t: string) => t)
 	} finally {
 		loading.value = false
+	}
+}
+
+// Populate the dropdown with all existing system tags the first time it opens (an
+// empty query returns every Tag), so users see options without having to type.
+const openedOnce = ref(false)
+function onOpen(open: unknown) {
+	if (open && !openedOnce.value) {
+		openedOnce.value = true
+		onQuery('')
 	}
 }
 
@@ -151,6 +166,7 @@ function removeTag(value: string) {
 			:placeholder="__('Add tags…')"
 			:empty-text="__('No tags found')"
 			@update:query="onQuery"
+			@update:open="onOpen"
 		>
 			<template #trigger="{ open, selectedOptions, setOpen }">
 				<button
