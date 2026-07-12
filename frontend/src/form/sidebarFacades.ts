@@ -233,7 +233,8 @@ class AssignToFacade {
 					label: __('Priority'),
 					fieldtype: 'Select',
 					fieldname: 'priority',
-					options: ['Low', 'Medium', 'High'],
+					// Vue SelectField expects a newline-joined string, not an array.
+					options: 'Low\nMedium\nHigh',
 					default: 'Medium',
 				},
 				{ fieldtype: 'Section Break' },
