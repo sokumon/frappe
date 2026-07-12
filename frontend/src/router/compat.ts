@@ -234,11 +234,35 @@ function setRoute(...args: any[]) {
 	}
 
 	const path = "/" + segments.join("/")
-	const query = (frappe.route_options || {}) as any
+	// Only serializable route_options go into the URL query. Legacy code stashes
+	// in-memory objects here for the next view (e.g. print_doc: `route_options.frm`),
+	// which must NOT be URL-encoded — stringifyQuery JSON-stringifies object values
+	// and a class instance like `frm` is circular. `frappe.route_options` keeps the
+	// full object so the destination view can still read those in memory.
+	const query = toSerializableQuery(frappe.route_options)
 	const replace = !!frappe.route_flags?.replace_route
 	frappe.route_flags = {}
 
 	return router[replace ? "replace" : "push"]({ path, query })
+}
+
+// Drop query values that can't be represented in a URL: functions and non-JSON
+// (circular / class-instance) objects. Primitives, arrays and plain objects stay.
+function toSerializableQuery(opts: any): Record<string, any> {
+	const out: Record<string, any> = {}
+	for (const key in opts || {}) {
+		const v = opts[key]
+		if (v === undefined || v === null || typeof v === "function") continue
+		if (typeof v === "object") {
+			try {
+				JSON.stringify(v)
+			} catch {
+				continue
+			}
+		}
+		out[key] = v
+	}
+	return out
 }
 
 // ---------------------------------------------------------------------------

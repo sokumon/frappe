@@ -21,6 +21,7 @@ import LucidePaperclip from '~icons/lucide/paperclip'
 import LucideUsers from '~icons/lucide/users'
 import LucideShare2 from '~icons/lucide/share-2'
 import LucideHeart from '~icons/lucide/heart'
+import LucidePrinter from '~icons/lucide/printer'
 import LucidePlus from '~icons/lucide/plus'
 import LucideX from '~icons/lucide/x'
 import LucideCamera from '~icons/lucide/camera'
@@ -32,7 +33,6 @@ import LucideExternalLink from '~icons/lucide/external-link'
 declare const frappe: any
 const __ = (window as any).__ || ((s: string, _a?: any[]) => s)
 const cint = (window as any).cint || ((v: any) => parseInt(v) || 0)
-const comment_when = (window as any).comment_when || ((s: string) => s)
 
 const props = defineProps<{ frm: any }>()
 
@@ -223,6 +223,25 @@ const likeCount = computed(() => {
 	version.value
 	return props.frm?.doc ? frappe.ui.get_liked_by(props.frm.doc).length : 0
 })
+// --- print ------------------------------------------------------------------
+// Port of the legacy sidebar setup_print(): show for a printable, non-single doc
+// whose docstatus permits printing (submitted, or draft/cancelled when allowed).
+const canPrint = computed(() => {
+	version.value
+	const frm = props.frm
+	if (!frm?.doc || isLocal.value || frm.meta?.issingle) return false
+	const ps = frappe.model.get_doc(':Print Settings', 'Print Settings') || {}
+	const docstatusOk =
+		!frappe.model.is_submittable(frm.doctype) ||
+		frm.doc.docstatus == 1 ||
+		(cint(ps.allow_print_for_cancelled) && frm.doc.docstatus == 2) ||
+		(cint(ps.allow_print_for_draft) && frm.doc.docstatus == 0)
+	return !!docstatusOk && frappe.model.can_print(null, frm)
+})
+function printDoc() {
+	props.frm.print_doc()
+}
+
 function toggleLike() {
 	const frm = props.frm
 	const add = liked.value ? 'No' : 'Yes'
@@ -297,7 +316,11 @@ const showAbsolute = computed(
 )
 function when(ts?: string) {
 	if (!ts) return ''
-	return showAbsolute.value ? frappe.datetime.str_to_user(ts) : comment_when(ts)
+	// prettyDate -> plain "2 months ago"; comment_when would wrap it in a
+	// `<span class="frappe-timestamp">` we'd render as raw text.
+	return showAbsolute.value
+		? frappe.datetime.str_to_user(ts)
+		: frappe.datetime?.prettyDate?.(ts) || ''
 }
 const createdBy = computed(() => {
 	version.value
@@ -453,18 +476,27 @@ watch(version, () => {
 					>{{ __('Experimental') }}</span
 				>
 			</div>
-			<button
-				v-if="!isLocal"
-				type="button"
-				class="shrink-0"
-				:title="likeCount ? __('{0} likes', [likeCount]) : __('Like')"
-				@click="toggleLike"
-			>
-				<LucideHeart
-					class="h-4 w-4"
-					:class="liked ? 'fill-current text-ink-red-5' : 'text-ink-gray-5'"
-				/>
-			</button>
+			<div v-if="!isLocal" class="flex shrink-0 items-center gap-2">
+				<button
+					v-if="canPrint"
+					type="button"
+					class="text-ink-gray-5 hover:text-ink-gray-8"
+					:title="__('Print')"
+					@click="printDoc"
+				>
+					<LucidePrinter class="h-4 w-4" />
+				</button>
+				<button
+					type="button"
+					:title="likeCount ? __('{0} likes', [likeCount]) : __('Like')"
+					@click="toggleLike"
+				>
+					<LucideHeart
+						class="h-4 w-4"
+						:class="liked ? 'fill-current text-ink-red-5' : 'text-ink-gray-5'"
+					/>
+				</button>
+			</div>
 		</div>
 
 		<template v-if="!isLocal">
