@@ -19,7 +19,7 @@ export default defineConfig({
 			lucideIcons: true,
 			jinjaBootData: true,
 			buildConfig: {
-				indexHtmlPath: `../${getAppName()}/www/${getAppName()}.html`,
+				indexHtmlPath: `../frappe/www/newdesk.html`,
 			},
 		}),
 	],

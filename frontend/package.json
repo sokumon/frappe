@@ -13,7 +13,13 @@
   },
   "dependencies": {
     "@framework/ui": "link:../ui",
+    "bootstrap": "4.6.2",
     "frappe-ui": "1.0.0-beta.21",
+    "jquery": "3.7.0",
+    "moment": "2.29.4",
+    "moment-timezone": "0.5.35",
+    "popper.js": "1.16.1",
+    "sortablejs": "1.15.0",
     "vue": "^3.5.13",
     "vue-router": "^4.2.2"
   },

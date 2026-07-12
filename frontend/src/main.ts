@@ -25,6 +25,7 @@ import { installAssets } from "@/boot/assets"
 import { installLike } from "@/boot/like"
 import { installDefaults } from "@/boot/defaults"
 import { installPageview } from "@/boot/pageview"
+import { installLibs } from "@/boot/libs"
 
 // The Vue-native form engine (frappe.ui.form.on / Controller / Form /
 // QuickEntryForm). It replaces the removed `form_vue_shell` bundle and MUST be
@@ -151,27 +152,27 @@ async function appendScripts(scripts) {
     if (!scripts?.length) return
 
     const filteredScripts = scripts.filter(script =>
-        script.includes("libs") ||
+        // libs.bundle.js is no longer loaded as a <script>; jQuery/bootstrap/
+        // moment/Sortable now come from frontend yarn deps via installLibs().
         script.includes("controls") ||
         script.includes("erpnext") ||
         script.includes("india_compliance")
     )
+    // Boot the ported framework globals before any bundle loads. libs.bundle no
+    // longer provides jQuery (installLibs() did, in initFrappe), so these can run
+    // unconditionally up front rather than keying off the first non-libs script.
+    installUtilsOnce()
+    installDomOnce()
+    installAssetsOnce()
+    installRequestOnce()
+    installModelOnce()
+    installUserOnce()
+    installDbOnce()
+    installLikeOnce()
+    installPageviewOnce()
+
     let counter = 0;
     for (const script of filteredScripts) {
-        // Install frappe.model before the first non-libs bundle, since
-        // controls/report may reference frappe.model. Mirrors the original
-        // desk.bundle order (model.js loaded before controls.bundle).
-        if (!script.includes("libs")) {
-            installUtilsOnce()
-            installDomOnce()
-            installAssetsOnce()
-            installRequestOnce()
-            installModelOnce()
-            installUserOnce()
-            installDbOnce()
-            installLikeOnce()
-            installPageviewOnce()
-        }
         // Install the form engine before the first app bundle that depends on it.
         if (script.includes("erpnext") || script.includes("india_compliance")) {
             installFormEngineOnce()
@@ -269,6 +270,11 @@ async function initFrappe() {
     })
     let  values  = await res.json()
     values = values.data
+    // Publish jQuery/$ (+ bootstrap plugins), moment, Sortable, SetVueGlobals on
+    // window BEFORE anything else — the ported boot installs (utils/dom/request/
+    // user) and the controls/erpnext bundles all use $ at eval. Replaces the
+    // removed libs.bundle.js; these libs are now frontend yarn deps.
+    installLibs()
     // Define frappe._ / window.__ (translation) first — it's referenced
     // pervasively (SetVueGlobals, ported model/* files) and only reads
     // frappe._messages at runtime, so it's safe before provide.
