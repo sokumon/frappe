@@ -26,6 +26,7 @@ import { installLike } from "@/boot/like"
 import { installDefaults } from "@/boot/defaults"
 import { installPageview } from "@/boot/pageview"
 import { installLibs } from "@/boot/libs"
+import { installKeys } from "@/boot/keys"
 
 // The Vue-native form engine (frappe.ui.form.on / Controller / Form /
 // QuickEntryForm). It replaces the removed `form_vue_shell` bundle and MUST be
@@ -291,6 +292,14 @@ async function initFrappe() {
     // sits with the other dependency-free boot namespaces. Ported from
     // defaults.js of the removed desk.bundle.
     installDefaults()
+    // frappe.ui.keys / frappe.ui.keyCode (port of ui/keyboard.js, which lived
+    // in the removed desk/list bundles). Must exist before the controls and
+    // erpnext bundles load — comment.js/text_editor.js call keys.get_key and
+    // POS pages call add_shortcut/on at runtime. add_shortcut registrations
+    // dispatch via frappe-ui useShortcut through <ShortcutHost> in App.vue;
+    // on() handlers use the ported window-keydown dispatcher (needs jQuery,
+    // present via installLibs above).
+    installKeys()
     // @framework/ui's FormLayout number/currency fields read framework formatting
     // defaults from `window.sysdefaults` (getFormatDefaults). The legacy desk keeps
     // them on frappe.boot.sysdefaults; publish them on window for the Vue fields.
