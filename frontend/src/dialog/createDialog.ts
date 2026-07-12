@@ -14,7 +14,7 @@
 // bundle-load time (QuickEntryForm, SettingsDialog) captured the legacy class in
 // their `extends` clause and stay on the legacy modal path for now.
 
-import { computed, defineComponent, h, markRaw, onMounted, reactive, ref } from 'vue'
+import { computed, defineComponent, h, markRaw, onMounted, reactive, ref, shallowReactive } from 'vue'
 import type { PropType } from 'vue'
 import { applyMetaScript, buildLayoutFromMeta, resolveLayout } from '@framework/ui/FormLayout'
 import type {
@@ -24,6 +24,7 @@ import type {
 	MetaOp,
 	RawMetaField,
 } from '@framework/ui/FormLayout'
+import { makeControl, dialogHost } from '@/form/controls'
 
 // Rendered-but-valueless fieldtypes: skipped by get_values/clear.
 const VALUELESS = new Set(['Button', 'Heading', 'HTML'])
@@ -52,22 +53,6 @@ export const THEME_ICON: Record<string, string> = {
 	yellow: 'lucide-alert-triangle',
 	blue: 'lucide-info',
 	green: 'lucide-check-circle',
-}
-
-// Frappe DocField property name → portable FieldMeta property name (same map as
-// useFormBridge). set_df_property speaks DocField names; the layout speaks
-// FieldMeta. Unmapped props trigger a full schema rebuild instead.
-const DF_PROP_MAP: Record<string, keyof FieldMeta> = {
-	read_only: 'readOnly',
-	hidden: 'hidden',
-	reqd: 'reqd',
-	options: 'options',
-	label: 'label',
-	description: 'description',
-	precision: 'precision',
-	depends_on: 'dependsOn',
-	mandatory_depends_on: 'mandatoryDependsOn',
-	read_only_depends_on: 'readOnlyDependsOn',
 }
 
 function translate(text: any, replace?: any, context?: any): string {
@@ -342,9 +327,16 @@ export class DialogBridge {
 		}
 		if (!presetDoc) this.doc = this._vdoc
 
-		// --- schema: base build + runtime meta-script ops ---------------------
+		// --- schema: reactive dfs + base build --------------------------------
+		// Per-field shallowReactive proxies over the CALLER's df objects (same target,
+		// so caller-side value mutations are still visible; writes THROUGH the proxy —
+		// `d.fields_dict.x.df.hidden = 1` / set_df_property — are reactively tracked).
+		// `_base` is a computed over these, so those writes re-render on their own
+		// (matching the form's §2a), while `refresh()` bumps `_schemaVersion` for the
+		// legacy "mutate the raw df then refresh()" path (and grid column ops).
+		this._reactiveFields = this.fields.map((df: any) => shallowReactive(df))
 		const dfByName: Record<string, any> = {}
-		for (const df of this.fields) if (df.fieldname) dfByName[df.fieldname] = df
+		for (const df of this._reactiveFields) if (df.fieldname) dfByName[df.fieldname] = df
 
 		const self = this
 		this._decorate = (field: FieldMeta): FieldUI | void => {
@@ -382,15 +374,31 @@ export class DialogBridge {
 		}
 
 		this._ops = ref<MetaOp[]>([])
-		this._base = ref<FormLayoutSchema>(this._buildBase())
+		this._schemaVersion = ref(0)
+		this._base = computed<FormLayoutSchema>(() => {
+			this._schemaVersion.value // explicit-refresh + grid-column-op dep
+			return this._buildBase()
+		})
 		this._layout = computed(() => applyMetaScript(this._base.value, this._ops.value))
 
-		// --- fields_dict shims -------------------------------------------------
-		for (const df of this.fields) {
+		// --- fields_dict: one control per field (unified with the desk form) ---
+		const host = dialogHost(this)
+		for (const df of this._reactiveFields) {
 			if (LAYOUT_BREAKS.has(df.fieldtype) || !df.fieldname) continue
-			const shim = this._makeFieldShim(df)
-			this.fields_dict[df.fieldname] = shim
-			this.fields_list.push(shim)
+			const control = makeControl({ df, host })
+			if (!control) continue
+			// Dialog `get_query` lives on the df (the decorator reads `df.get_query`);
+			// proxy the control's `get_query` to it so `d.fields_dict.x.get_query = fn`
+			// and `set_query` agree with what the Link decorator resolves.
+			Object.defineProperty(control, 'get_query', {
+				configurable: true,
+				get: () => df.get_query,
+				set: (fn) => {
+					df.get_query = fn
+				},
+			})
+			this.fields_dict[df.fieldname] = control
+			this.fields_list.push(control)
 		}
 
 		// --- footer actions ------------------------------------------------------
@@ -461,7 +469,10 @@ export class DialogBridge {
 	}
 
 	_buildBase(): FormLayoutSchema {
-		const renderable = this.fields.filter((df: any) => df.fieldtype !== 'Fold')
+		// Build from the REACTIVE df proxies so tracked reads re-run `_base`.
+		const renderable = (this._reactiveFields || this.fields).filter(
+			(df: any) => df.fieldtype !== 'Fold',
+		)
 		return buildLayoutFromMeta(renderable, {
 			childMetas: this._childMetas,
 			decorate: this._decorate,
@@ -496,66 +507,6 @@ export class DialogBridge {
 		if (def === '__user' || def.toLowerCase() === 'user') return frappe.session.user
 		if (def === 'user_fullname') return frappe.session.user_fullname
 		return def
-	}
-
-	_makeFieldShim(df: any) {
-		const self = this
-		const shim: any = {
-			df,
-			get_value: () => self._vdoc[df.fieldname],
-			set_value: (v: any) => self.set_value(df.fieldname, v),
-			set_input: (v: any) => self.set_value(df.fieldname, v),
-			refresh: () => self.refresh(),
-			refresh_input: () => {},
-			toggle: (show: boolean) => self.set_df_property(df.fieldname, 'hidden', show ? 0 : 1),
-			set_description: (text: string) =>
-				self.set_df_property(df.fieldname, 'description', text),
-			set_label: (label: string) => self.set_df_property(df.fieldname, 'label', label),
-			set_focus: () => self._focusField(df.fieldname),
-			set_invalid: () => {},
-			get value() {
-				return self._vdoc[df.fieldname]
-			},
-			set value(v: any) {
-				self._vdoc[df.fieldname] = v
-			},
-			get $wrapper() {
-				return self._fieldWrapper(df)
-			},
-			get wrapper() {
-				const w = self._fieldWrapper(df)
-				return w?.get ? w.get(0) : w
-			},
-			get $input() {
-				return self._fieldWrapper(df)?.find?.('input, select, textarea') ?? jq(null)
-			},
-			get input() {
-				return shim.$input?.get?.(0)
-			},
-		}
-		// `fields_dict.x.get_query = fn` must land on the df the decorator reads.
-		Object.defineProperty(shim, 'get_query', {
-			get: () => df.get_query,
-			set: (fn) => {
-				df.get_query = fn
-			},
-		})
-		if (df.fieldtype === 'Table') {
-			// Callers mutate `df.data` then call grid.refresh(); reassigning the
-			// doc array is what triggers the Vue grid to re-render.
-			shim.grid = {
-				df,
-				refresh: () => {
-					self._vdoc[df.fieldname] = [...(df.data || self._vdoc[df.fieldname] || [])]
-				},
-				get_field: (fieldname: string) => {
-					const child = (df.fields || []).find((f: any) => f.fieldname === fieldname)
-					return child ? { df: child } : undefined
-				},
-				wrapper: chainStub(),
-			}
-		}
-		return shim
 	}
 
 	_fieldWrapper(df: any) {
@@ -671,24 +622,13 @@ export class DialogBridge {
 
 	set_df_property(fieldname: string, prop: string, value: any) {
 		if (!fieldname) return
-		const shim = this.fields_dict[fieldname]
-		if (!shim) return
-		shim.df[prop] = value
-		if (shim.df.fieldtype === 'HTML' && prop === 'options') {
+		const control = this.fields_dict[fieldname]
+		if (!control) return
+		// Write the REACTIVE df → `_base` recomputes on its own (no op push needed).
+		control.df[prop] = value
+		if (control.df.fieldtype === 'HTML' && prop === 'options') {
 			const el = this._htmlEls[fieldname]
 			if (el) el.innerHTML = value ?? ''
-			return
-		}
-		const mapped = DF_PROP_MAP[prop]
-		if (mapped) {
-			this._ops.value = [
-				...this._ops.value,
-				{ op: 'setFieldProperty', fieldname, prop: mapped, value },
-			]
-		} else {
-			// Unmapped df prop (e.g. grid columns): rebuild the base schema so the
-			// mutation is picked up.
-			this.refresh()
 		}
 	}
 
@@ -712,9 +652,9 @@ export class DialogBridge {
 	}
 
 	refresh() {
-		// The layout is reactive; a rebuild picks up direct df mutations made by
-		// callers that then invoke refresh() (legacy Layout.refresh semantics).
-		this._base.value = this._buildBase()
+		// `_base` is a computed; bump the version so the legacy "mutate the raw df
+		// then refresh()" path (and grid column ops via rebuild_schema) re-render.
+		this._schemaVersion.value++
 	}
 
 	refresh_dependency() {

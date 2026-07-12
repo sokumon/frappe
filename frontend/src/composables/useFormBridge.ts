@@ -35,6 +35,7 @@ import type {
 	RawMetaField,
 	MetaOp,
 } from '@framework/ui/FormLayout'
+import { makeModelListeners } from '@/form/modelEvents'
 
 // Value-bearing fieldtypes whose control does NOT emit `change` (commit on their
 // discrete `update:modelValue` pick instead). Attach Image is the only scalar one;
@@ -50,33 +51,18 @@ const CHILD_TABLE = new Set(['Table', 'Table MultiSelect'])
 // doesn't, so the bridge reapplies it — see fetchLinkTargets).
 const LINK_TYPES = new Set(['Link', 'Dynamic Link'])
 
-// Frappe DocField property name → portable FieldMeta property name. Runtime
-// `set_df_property`/`toggle_*` speak the DocField names; the Vue layout speaks
-// FieldMeta. Props not in this map (e.g. `autocompletions`) are ignored — they
-// don't affect the Vue render.
-const DF_PROP_MAP: Record<string, keyof FieldMeta> = {
-	read_only: 'readOnly',
-	hidden: 'hidden',
-	reqd: 'reqd',
-	options: 'options',
-	label: 'label',
-	description: 'description',
-	precision: 'precision',
-	depends_on: 'dependsOn',
-	mandatory_depends_on: 'mandatoryDependsOn',
-	read_only_depends_on: 'readOnlyDependsOn',
-}
-
 export interface FormBridge {
-	/** Render-ready schema for `<FormLayout :layout>`, re-resolving on meta-script ops. */
+	/** Render-ready schema for `<FormLayout :layout>`, rebuilt from the controls' reactive dfs. */
 	layout: ComputedRef<FormLayoutSchema>
 	/** Reactive doc for `<FormLayout :doc>`; mirrors `frm.doc` (scalars + child clones). */
 	doc: Record<string, any>
-	/** Re-seed the reactive doc from `frm.doc` (call on doc (re)load / name change). */
+	/** Re-seed the whole reactive doc from `frm.doc` (call on doc (re)load / name change). */
 	seed: () => void
-	/** Clear accumulated meta-script ops; call before a `refresh` re-applies them. */
+	/** Identity-preserving per-field mirror resync (frm.refresh_field / control.refresh). */
+	seedField: (fieldname: string) => void
+	/** Inert API-compat no-op (meta-script ops are gone; the layout computed re-renders). */
 	resetOps: () => void
-	/** Detach model listeners + restore wrapped methods. */
+	/** Detach model listeners. */
 	dispose: () => void
 }
 
@@ -89,20 +75,27 @@ export function useFormBridge(frm: any): FormBridge {
 		.map((df: RawMetaField) => ({ fieldname: df.fieldname, cdt: df.options as string }))
 
 	// --- Schema -------------------------------------------------------------
-	// Child column metas: same call the legacy script_manager uses (script_manager.js:247).
-	const childMetas: Record<string, RawMetaField[]> = {}
-	for (const { cdt } of tableFields) {
-		if (!childMetas[cdt]) childMetas[cdt] = frappe.meta.get_docfields(cdt, frm.docname)
-	}
+	// Child column metas are the frm's per-cdt-per-form REACTIVE child dfs (built in
+	// build_fields_dict), so a `grid.update_docfield_property` / child `df.hidden = 1`
+	// write re-renders the column through this rebuild.
+	const childMetas: Record<string, RawMetaField[]> = frm._child_dfs
 
-	// Runtime meta-script ops (set_df_property/toggle_*), applied atop the base schema.
+	// Inert API-compat: meta-script ops are gone (df mutation drives rendering now),
+	// but `applyMetaScript` with zero ops is identity, so callers of `resetOps` are safe.
 	const ops = ref<MetaOp[]>([])
 
-	const base = buildLayoutFromMeta(frm.meta.fields || [], {
-		childMetas,
-		decorate: commitDecorator,
+	// Base schema is a COMPUTED over the controls' reactive dfs (parent + grid child):
+	// any tracked df read (hidden/label/reqd/read_only/options/description/…) re-runs
+	// the build, so `field.df.hidden = 1` — or legacy `set_df_property` — re-renders
+	// with no explicit refresh (§2a). `controls_version` is a defensive dep so a
+	// fields_dict rebuild also invalidates it. Rebuild churn is safe: FormLayout
+	// already produces a fresh resolved tree on every keystroke.
+	const base = computed<FormLayoutSchema>(() => {
+		frm.controls_version?.value
+		const controlDfs = (frm.fields || []).map((f: any) => f.df)
+		return buildLayoutFromMeta(controlDfs, { childMetas, decorate: commitDecorator })
 	})
-	const layout = computed<FormLayoutSchema>(() => applyMetaScript(base, ops.value))
+	const layout = computed<FormLayoutSchema>(() => applyMetaScript(base.value, ops.value))
 
 	// --- Reactive doc mirror ------------------------------------------------
 	const doc = reactive<Record<string, any>>({})
@@ -126,6 +119,42 @@ export function useFormBridge(frm: any): FormBridge {
 		seeding = false
 	}
 	seed()
+
+	// Identity-preserving per-field resync. Scripts mutate `frm.doc` directly then
+	// call `frm.refresh_field(f)` (e.g. `frm.doc.items.forEach(...)`), which bypasses
+	// `frappe.model.set_value` and thus the mirror; this pulls the change in. Child
+	// rows are matched by `name` and updated IN PLACE (Object.assign into the existing
+	// clone) so the Grid's row-key WeakMap + selection survive — a fresh row object
+	// would re-key and drop selection. Writes go through the `seeding` guard because
+	// the table reassignment re-triggers the sync reconcile watcher (which
+	// early-returns on `seeding`), avoiding a loop.
+	function seedField(fieldname: string) {
+		if (!frm.doc || !(fieldname in frm.doc)) return
+		const v = frm.doc[fieldname]
+		seeding = true
+		try {
+			if (Array.isArray(v)) {
+				const existing = Array.isArray(doc[fieldname]) ? doc[fieldname] : []
+				const byName = new Map(
+					existing.filter((r: any) => r.name).map((r: any) => [r.name, r])
+				)
+				doc[fieldname] = v.map((row: any) => {
+					const clone = row.name ? byName.get(row.name) : undefined
+					if (clone) {
+						Object.assign(clone, row)
+						return clone
+					}
+					return { ...row }
+				})
+			} else if (doc[fieldname] !== v) {
+				doc[fieldname] = v
+			}
+		} finally {
+			seeding = false
+		}
+	}
+	// The frmHost's refresh_view + frm.refresh_field call this via `frm._seed_field`.
+	frm._seed_field = seedField
 
 	// --- Commit decorator (parent scalars + child cells) --------------------
 	// Attached to every value field by `buildLayoutFromMeta`. On the control's
@@ -254,8 +283,13 @@ export function useFormBridge(frm: any): FormBridge {
 		if (df && LINK_TYPES.has(df.fieldtype)) fetchLinkTargets(df, value, target)
 	}
 
+	// Model listeners registered through a tracker so `dispose()` can splice them out
+	// (there is no frappe.model.off) — otherwise each Form.vue mount leaks the whole
+	// frm graph and a stale instance can double-fire scripts/fetches.
+	const listeners = makeModelListeners()
+
 	// Parent scalars.
-	frappe.model.on(doctype, '*', (fieldname: string, value: any, d: any) => {
+	listeners.on(doctype, '*', (fieldname: string, value: any, d: any) => {
 		if (disposed || d.name !== frm.docname) return
 		if (!Array.isArray(frm.doc[fieldname]) && doc[fieldname] !== value) {
 			doc[fieldname] = value
@@ -266,7 +300,7 @@ export function useFormBridge(frm: any): FormBridge {
 	// Child rows (one handler per unique child doctype; matched by parentfield so
 	// two child tables of the same doctype don't cross-write).
 	for (const cdt of new Set(tableFields.map((t) => t.cdt))) {
-		frappe.model.on(cdt, '*', (fieldname: string, value: any, row: any) => {
+		listeners.on(cdt, '*', (fieldname: string, value: any, row: any) => {
 			if (disposed || row.parent !== frm.docname || row.parenttype !== doctype) return
 			const arr: Record<string, any>[] = doc[row.parentfield]
 			if (!arr) return
@@ -278,48 +312,10 @@ export function useFormBridge(frm: any): FormBridge {
 		})
 	}
 
-	// --- Meta-script → layout (set_df_property / toggle_*) -------------------
-	// Wrap the four legacy mutators on this frm instance: run the original (keeps
-	// the hidden legacy layout + fields_dict consistent), then record an
-	// applyMetaScript op so the Vue layout re-resolves.
-	function pushOp(fieldname: string, dfProp: string, value: unknown) {
-		const prop = DF_PROP_MAP[dfProp]
-		if (!prop) return
-		ops.value = [...ops.value, { op: 'setFieldProperty', fieldname, prop, value }]
-	}
-	function toArray(fnames: string | string[]): string[] {
-		return Array.isArray(fnames) ? fnames : [fnames]
-	}
-
-	const orig = {
-		set_df_property: frm.set_df_property,
-		toggle_display: frm.toggle_display,
-		toggle_enable: frm.toggle_enable,
-		toggle_reqd: frm.toggle_reqd,
-	}
-	frm.set_df_property = function (fieldname: string, property: string, value: unknown, ...rest: any[]) {
-		const r = orig.set_df_property.call(this, fieldname, property, value, ...rest)
-		// Only mirror top-level field props (a child `table_field` arg is present for
-		// grid-cell props, which the Vue grid resolves from its own column meta).
-		if (rest[1] == null) pushOp(fieldname, property, value)
-		return r
-	}
-	frm.toggle_display = function (fnames: string | string[], show: boolean) {
-		const r = orig.toggle_display.call(this, fnames, show)
-		toArray(fnames).forEach((f) => pushOp(f, 'hidden', show ? 0 : 1))
-		return r
-	}
-	frm.toggle_enable = function (fnames: string | string[], enable: boolean) {
-		const r = orig.toggle_enable.call(this, fnames, enable)
-		toArray(fnames).forEach((f) => pushOp(f, 'read_only', enable ? 0 : 1))
-		return r
-	}
-	frm.toggle_reqd = function (fnames: string | string[], mandatory: boolean) {
-		const r = orig.toggle_reqd.call(this, fnames, mandatory)
-		toArray(fnames).forEach((f) => pushOp(f, 'reqd', mandatory ? 1 : 0))
-		return r
-	}
-
+	// Meta-script mutators (set_df_property / toggle_*) are NO LONGER wrapped: they
+	// write the per-form reactive df (single-df invariant), which re-renders through
+	// the `base` computed on its own (§2a). `resetOps` stays as an inert no-op so
+	// Form.vue's `resetOps()` call is harmless.
 	function resetOps() {
 		if (ops.value.length) ops.value = []
 	}
@@ -327,8 +323,8 @@ export function useFormBridge(frm: any): FormBridge {
 	function dispose() {
 		disposed = true
 		stopHandles.forEach((stop) => stop())
-		Object.assign(frm, orig)
+		listeners.offAll()
 	}
 
-	return { layout, doc, seed, resetOps, dispose }
+	return { layout, doc, seed, seedField, resetOps, dispose }
 }

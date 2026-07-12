@@ -53,20 +53,36 @@ const form = ref<any>(null)
 // so consumers read `frm.value` once it's constructed in onMounted.
 provide('frm', form)
 
-// Bridge `frm.set_query` to the Vue LinkField: it stashes a `get_query` callback on
-// `frm.fields_dict[fieldname]`; the LinkField calls this resolver at fetch time to
-// get runtime `filters`/`query`. Evaluated per fetch (not cached) so it reflects the
-// live doc — matching desk, which re-runs get_query on every dropdown open. `row` is
-// the child row for grid cells (grid deferred, so parent doc for now).
+// Bridge `frm.set_query` to the Vue LinkField: it stashes a `get_query` callback —
+// on `frm.fields_dict[fieldname]` for a top-level Link, or on the grid's per-field
+// handle (`grid.get_field(fieldname).get_query`) for a child-table cell. The
+// LinkField calls this resolver at fetch time (not cached) so it reflects the live
+// doc, matching desk which re-runs get_query on every dropdown open.
 provide(LinkQueryKey, (fieldname: string, row?: Record<string, any>) => {
 	const frm = form.value
-	const field = frm?.fields_dict?.[fieldname]
-	const getQuery = field?.get_query
+	if (!frm) return undefined
+	let getQuery: any
+	let doc: any
+	let cdt: string | undefined
+	let cdn: string | undefined
+	if (row?.parentfield) {
+		// Child-table cell: get_query lives on the parent grid's field handle, and
+		// legacy invokes it `(frm.doc, cdt, cdn)` — erpnext scripts do
+		// `function(doc, cdt, cdn) { let row = locals[cdt][cdn]; … }`, expecting the
+		// PARENT doc as `doc` and the child's doctype/name as cdt/cdn.
+		getQuery = frm.fields_dict?.[row.parentfield]?.grid?.get_field?.(fieldname)?.get_query
+		doc = frm.doc
+		cdt = row.doctype
+		cdn = row.name
+	} else {
+		getQuery = frm.fields_dict?.[fieldname]?.get_query
+		doc = frm.doc
+		cdt = frm.doc?.doctype
+		cdn = frm.doc?.name
+	}
 	if (!getQuery) return undefined
-	const doc = row ?? frm.doc
-	// get_query is normally a fn(doc, cdt, cdn) → {filters, query}; tolerate an object.
-	const result =
-		typeof getQuery === 'function' ? getQuery(doc, doc?.doctype, doc?.name) : getQuery
+	// Normally a fn(doc, cdt, cdn) → {filters, query}; tolerate a plain object.
+	const result = typeof getQuery === 'function' ? getQuery(doc, cdt, cdn) : getQuery
 	return result || undefined
 })
 
@@ -182,7 +198,14 @@ onMounted(() => {
 	})
 })
 
-onUnmounted(() => bridge.value?.dispose())
+onUnmounted(() => {
+	// Order matters: drop the bridge's model mirrors first, then tear down the frm
+	// (removes watch_model_updates listeners, releases detached wrapper sinks, and
+	// clears cur_frm if it's this instance) — otherwise navigating between forms
+	// leaks the frm graph and can double-fire client scripts.
+	bridge.value?.dispose()
+	form.value?.teardown?.()
+})
 
 // Doc-to-doc navigation within the same doctype keeps this component mounted
 // (FormOrPage keys the form by doctype), so re-load on name change.

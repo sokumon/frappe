@@ -25,7 +25,12 @@
 // (chrome + save chain) and grid (child-table `.grid.*`, per instruction). Methods
 // that touch those are guarded so the form still loads and scripts still run.
 
+import { ref, shallowReactive } from 'vue'
 import { installSidebarFacades } from './sidebarFacades'
+import { makeControl, frmHost } from './controls'
+import type { ControlHost } from './controls'
+import { makeModelListeners } from './modelEvents'
+import type { ModelListeners } from './modelEvents'
 
 declare const frappe: any
 declare const $: any
@@ -85,36 +90,6 @@ function makeDashboardStub(): any {
 	})
 }
 
-// --- Grid stub (Tier-2, deferred) --------------------------------------------
-// Child tables RENDER + edit via the Vue `TableField`, but `frm.fields_dict[f].grid.*`
-// SCRIPTING (set_column_disp, update_docfield_property, toggle_*, get_selected_children,
-// …) is deferred. This Proxy no-ops those so grid scripts don't throw. `get_field`
-// returns a STABLE per-field stub so `grid.get_field(x).get_query = …` (child
-// set_query) at least persists (child-cell resolver wiring is future work).
-function makeGridStub(df: any, frm: any): any {
-	const cdt = df.options
-	const fieldStubs: Record<string, any> = {}
-	const known: Record<string, any> = {
-		doctype: cdt,
-		df,
-		grid_rows: [],
-		grid_rows_by_docname: {},
-		docfields: [],
-		fields_map: {},
-		wrapper: noopNode(),
-		cannot_add_rows: false,
-		get_field: (fn: string) =>
-			(fieldStubs[fn] ??= { df: {}, fieldname: fn, get_query: undefined, refresh() {} }),
-		get_data: () => frm.doc?.[df.fieldname] || [],
-		get_selected_children: () => [],
-		get_selected: () => [],
-		get_row: () => ({}),
-	}
-	return new Proxy(known, {
-		get: (t, p: string) => (p in t ? t[p] : () => {}),
-	})
-}
-
 export class VueForm {
 	docname: string
 	doctype: string
@@ -136,9 +111,17 @@ export class VueForm {
 	action_perm_type_map: Record<string, string>
 	state_fieldname: any
 
-	// populated in setup()
+	// Vue-backed control hierarchy. `fields`/`fields_dict` are built EAGERLY in the
+	// constructor (H7 — before Form.vue builds the bridge, whose base computed sources
+	// the controls' reactive dfs). `_child_dfs` holds the per-cdt-per-form reactive
+	// child docfields every grid of that child doctype shares. `controls_version` is a
+	// defensive tick the bridge computed reads so a rebuild re-runs it.
 	fields: any[] = []
 	fields_dict: Record<string, any> = {}
+	_child_dfs: Record<string, any[]> = {}
+	_host: ControlHost | null = null
+	_model_listeners: ModelListeners | null = null
+	controls_version = ref(0)
 	wrapper: any
 	$wrapper: any
 	page: any
@@ -179,6 +162,13 @@ export class VueForm {
 
 		this.parent = parent
 		this.setup_meta(doctype)
+		// H7: build fields_dict from meta in the CONSTRUCTOR, not setup(). Form.vue
+		// builds the bridge right after `new Form(...)` and its layout computed reads
+		// the controls' reactive dfs off `frm.fields`; if that were still empty (built
+		// lazily in the first refresh's setup()) the form would render permanently
+		// blank. Nothing here needs setup() state — meta is loaded, child metas were
+		// fetched by `with_doctype` before construction.
+		this.build_fields_dict()
 		this.debounced_reload_doc = frappe.utils.debounce(this.reload_doc.bind(this), 1000)
 	}
 
@@ -203,8 +193,7 @@ export class VueForm {
 	}
 
 	setup() {
-		this.fields = []
-		this.fields_dict = {}
+		// fields_dict was built in the constructor (H7); do NOT reset it here.
 		this.state_fieldname = frappe.workflow.get_state_fieldname(this.doctype)
 
 		this.wrapper = this.parent
@@ -253,11 +242,8 @@ export class VueForm {
 			console.warn('[vueForm] workflow States init skipped', e)
 		}
 
-		// Build the lightweight fields_dict BEFORE script_manager.setup() — client
-		// scripts and the add_fetch scan both read frm.fields / frm.fields_dict.
-		this.build_fields_dict()
-
-		// client script must be called after fields_dict exists
+		// fields_dict is already built (constructor, H7); script_manager.setup() reads
+		// frm.fields / frm.fields_dict for the add_fetch scan and finds them populated.
 		this.script_manager = new frappe.ui.form.ScriptManager({ frm: this })
 		this.script_manager.setup()
 		this.watch_model_updates()
@@ -269,81 +255,53 @@ export class VueForm {
 	states: any = null
 
 	// --- fields_dict -------------------------------------------------------
-	// One lightweight handle per meta docfield. No control DOM: the Vue
-	// <FormLayout> renders the field; this handle exists for scripts, get_field,
-	// and set_query. Grid (child-table) handles are deferred — `grid` stays
-	// undefined, so child-table `.grid.*` scripts are a known gap for now.
+	// One Vue-backed control per meta docfield (§0). The classes own data/model
+	// behaviour (so old `frm.fields_dict[f].*` scripts keep working); the Vue
+	// <FormLayout> owns rendering. Each control holds a PER-FORM `shallowReactive`
+	// copy of the docfield — mutating it (`field.df.hidden = 1`, or via
+	// `set_df_property`) re-renders on its own because the bridge's layout computed
+	// is built from these dfs. Child (grid) columns get their own per-cdt-per-form
+	// reactive copies in `_child_dfs`, shared by every grid of that child doctype.
 	build_fields_dict() {
-		const frm = this
-		for (const df of this.meta.fields || []) {
-			const fieldname = df.fieldname
-			const field: any = {
-				df,
-				frm,
-				fieldname,
-				fieldtype: df.fieldtype,
-				doctype: df.parent,
-				// Property reads scripts do on the control (not always via `.df`).
-				get options() {
-					return df.options
-				},
-				get label() {
-					return df.label
-				},
-				// no-op: Vue owns rendering. Kept so legacy `field.refresh(fn)` /
-				// `frm.refresh_field(fn)` don't throw.
-				refresh() {},
-				refresh_input() {},
-				get_value() {
-					return frm.doc?.[fieldname]
-				},
-				// Control mutators scripts call (`frm.fields_dict[x].set_value(...)`,
-				// `set_input`, `toggle`, …). Route value sets through the model so the Vue
-				// view updates (set_input has no "no-trigger" path here — acceptable); the
-				// rest are safe no-ops. `get_query` is stashed by `frm.set_query`.
-				set_value(v: any) {
-					return frappe.model.set_value(frm.doctype, frm.docname, fieldname, v)
-				},
-				set_input(v: any) {
-					return frappe.model.set_value(frm.doctype, frm.docname, fieldname, v)
-				},
-				toggle(show: boolean) {
-					frm.toggle_display(fieldname, show)
-				},
-				hide() {
-					frm.toggle_display(fieldname, false)
-				},
-				// Routed so it actually updates the Vue label (used by set_currency_labels).
-				set_label(label: string) {
-					frm.set_df_property(fieldname, 'label', label)
-				},
-				set_description() {},
-				set_new_description() {},
-				set_focus() {},
-				set_empty() {},
+		const copy_df = (d: any) =>
+			shallowReactive(frappe.utils?.copy_dict ? frappe.utils.copy_dict(d) : { ...d })
+		this.fields = []
+		this.fields_dict = {}
+		this._child_dfs = {}
+		const host = (this._host = frmHost(this))
+
+		for (const metaDf of this.meta.fields || []) {
+			const df = copy_df(metaDf)
+			// Table field → build the shared per-cdt reactive child dfs once, before
+			// the control's grid (which reads them) is constructed.
+			if (TABLE_TYPES.has(df.fieldtype) && df.options && !this._child_dfs[df.options]) {
+				this._child_dfs[df.options] = (
+					frappe.meta.get_docfields(df.options, this.docname) || []
+				).map((cf: any) => copy_df(cf))
 			}
-			// Child tables get a grid stub (scripting deferred); other fields don't, so
-			// scripts' `if (field.grid)` table-detection stays correct.
-			if (TABLE_TYPES.has(df.fieldtype)) field.grid = makeGridStub(df, frm)
-			// DOM escape hatch. The legacy control always had a `$wrapper` jQuery node,
-			// and client scripts reach into it: HTML fields inject content via
-			// `fields_dict[f].$wrapper.html(...)` (erpnext Item render_item_prices),
-			// and others probe `fields_dict[f].wrapper.find(...)` / `.on(...)` (erpnext
-			// Item toggle_has_serial_batch_fields on a Section Break). So give EVERY
-			// handle a real (detached) node, created EAGERLY here since the refresh
-			// script runs before the Vue field mounts:
-			//   • HTML fields → HtmlField.vue adopts this live node so writes render.
-			//   • other fields → a safe sink: `.find()/.on()/.html()` no-op instead of
-			//     throwing (the injected DOM just isn't shown — acceptable Tier-3).
-			const el = document.createElement('div')
-			el.className = 'frappe-control form-field-wrapper old-desk-view'
-			field.$wrapper = $(el)
-			field.wrapper = field.$wrapper
-			// legacy control also exposes `.html()` directly on the field object.
-			field.html = (content: string) => field.$wrapper.html(content)
-			this.fields.push(field)
-			if (df.fieldname) this.fields_dict[df.fieldname] = field
+			const control = makeControl({ df, host })
+			if (!control) continue // unknown fieldtype → no entry (contract preserved)
+			this.fields.push(control)
+			if (df.fieldname) this.fields_dict[df.fieldname] = control
 		}
+
+		// Synthetic __newname (Data, hidden) — legacy layout injects it; scripts call
+		// `frm.get_field("__newname").set_label(...)`. fields_dict-only (hidden, so it
+		// never needs to render), a cheap parity win.
+		if (!this.fields_dict['__newname']) {
+			const df = shallowReactive({
+				fieldname: '__newname',
+				fieldtype: 'Data',
+				hidden: 1,
+				parent: this.doctype,
+			})
+			const control = makeControl({ df, host })
+			if (control) this.fields_dict['__newname'] = control
+		}
+
+		// Defensive tick (H7): the bridge's base computed reads this so a rebuild
+		// re-runs it even though `frm.fields` is a plain array.
+		this.controls_version.value++
 	}
 
 	// --- model updates -> scripts -----------------------------------------
@@ -353,8 +311,12 @@ export class VueForm {
 	// values into the reactive doc but does not trigger scripts; this does.
 	watch_model_updates() {
 		const me = this
+		// Register through a tracker so `teardown()` can splice these out (there is no
+		// frappe.model.off) — otherwise navigating away leaks the whole frm graph and,
+		// worse, a stale instance whose docname matches again double-fires scripts.
+		const listeners = (this._model_listeners = makeModelListeners())
 
-		frappe.model.on(
+		listeners.on(
 			me.doctype,
 			'*',
 			function (fieldname: string, value: any, doc: any, skip_dirty_trigger = false) {
@@ -375,21 +337,31 @@ export class VueForm {
 		})
 
 		$.each(table_fields, function (i: number, df: any) {
-			frappe.model.on(
+			listeners.on(
 				df.options,
 				'*',
 				function (fieldname: string, value: any, doc: any, skip_dirty_trigger = false) {
 					if (doc.parent == me.docname && doc.parentfield === df.fieldname) {
 						if (!skip_dirty_trigger) me.dirty()
 
-						// Grid deferred: legacy did `fields_dict[df.fieldname].grid.set_value`
-						// here to update the child cell control. useFormBridge mirrors the
-						// child cell into the reactive doc instead, so we only trigger scripts.
+						// The bridge mirrors the child cell into the reactive doc; here we
+						// only re-sync the grid view + trigger scripts.
+						me.fields_dict[df.fieldname]?.grid?.set_value?.(fieldname, value, doc)
 						return me.script_manager.trigger(fieldname, doc.doctype, doc.name)
 					}
 				}
 			)
 		})
+	}
+
+	// Remove model listeners, release detached wrapper sinks, and drop the global
+	// cur_frm pointer if it is this instance. Called from Form.vue onUnmounted (after
+	// bridge.dispose()); pairs with watch_model_updates + the reactive df sinks.
+	teardown() {
+		this._model_listeners?.offAll()
+		this._model_listeners = null
+		this._host?.release?.()
+		if ((window as any).cur_frm === this) (window as any).cur_frm = null
 	}
 
 	// --- refresh / onload --------------------------------------------------
@@ -557,7 +529,10 @@ export class VueForm {
 			}
 		}
 		for (const fieldname of fnames) {
-			const field = frappe.meta.get_docfield(this.doctype, fieldname, this.docname)
+			// Single-df invariant: resolve the control's PER-FORM reactive df, not the
+			// shared `frappe.meta` docfield — mutating the shared one wouldn't render and
+			// would leak across forms.
+			const field = this.get_docfield(fieldname)
 			if (field) {
 				fn(field)
 				this.refresh_field(fieldname)
@@ -565,12 +540,14 @@ export class VueForm {
 		}
 	}
 
+	// Single-df invariant: exactly one df object per field per form, shared by the
+	// control, get_docfield, field_map, set_df_property and the layout build. Parent
+	// → the control's reactive df; child (two-arg) → the grid's reactive child df.
 	get_docfield(fieldname1: string, fieldname2?: string) {
 		if (fieldname2) {
-			const doctype = this.get_docfield(fieldname1).options
-			return frappe.meta.get_docfield(doctype, fieldname2, this.docname)
+			return this.fields_dict[fieldname1]?.grid?.get_docfield(fieldname2)
 		}
-		return frappe.meta.get_docfield(this.doctype, fieldname1, this.docname)
+		return this.fields_dict[fieldname1]?.df
 	}
 
 	set_df_property(
@@ -585,16 +562,12 @@ export class VueForm {
 		if (!docname || !table_field) {
 			df = this.get_docfield(fieldname)
 		} else {
-			// child (grid) path deferred; fall back to the child docfield meta so the
-			// value still lands, but skip grid-row refresh.
-			df = frappe.meta.get_docfield(
-				this.get_docfield(fieldname)?.options,
-				table_field,
-				table_row_name
-			)
+			// Child (grid) cell: the grid's reactive child df (per-cdt-per-form).
+			df = this.fields_dict[fieldname]?.grid?.get_docfield(table_field)
 		}
 
 		if (df && df[property] != value) {
+			// Writing the reactive df re-renders via the bridge's layout computed (§2a).
 			df[property] = value
 			if (!(table_field && table_row_name)) {
 				this.refresh_field(fieldname)
@@ -620,20 +593,16 @@ export class VueForm {
 		})
 	}
 
-	// Stashes the runtime query on the field handle. The Vue LinkField resolver
-	// reads `frm.fields_dict[f].get_query` at fetch time (follow-up wiring).
+	// Stashes the runtime query where the Vue LinkField resolver (Form.vue's
+	// LinkQueryKey) reads it at fetch time: `fields_dict[f].get_query` for a top-level
+	// Link, `grid.get_field(f).get_query` for a child-table cell.
 	set_query(fieldname: string, opt1: any, opt2?: any) {
 		if (opt2) {
-			// child table: set_query(fieldname, parent fieldname, query) — needs grid,
-			// which is deferred.
+			// child table: set_query(child_fieldname, parent_fieldname, query)
 			const grid = this.fields_dict[opt1]?.grid
 			if (grid) grid.get_field(fieldname).get_query = opt2
-			else
-				console.warn(
-					`[vueForm] set_query on child table "${opt1}.${fieldname}" ignored: grid deferred`
-				)
 		} else {
-			// parent table: set_query(fieldname, query)
+			// parent: set_query(fieldname, query)
 			if (this.fields_dict[fieldname]) {
 				this.fields_dict[fieldname].get_query = opt1
 			}
@@ -647,7 +616,7 @@ export class VueForm {
 	add_child(fieldname: string, values?: Record<string, any>) {
 		const doc = frappe.model.add_child(
 			this.doc,
-			frappe.meta.get_docfield(this.doctype, fieldname).options,
+			this.get_docfield(fieldname)?.options,
 			fieldname
 		)
 		if (values) {
@@ -776,7 +745,8 @@ export class VueForm {
 	get_formatted(fieldname: string) {
 		return frappe.format(
 			this.doc[fieldname],
-			frappe.meta.get_docfield(this.doctype, fieldname, this.docname),
+			this.get_docfield(fieldname) ||
+				frappe.meta.get_docfield(this.doctype, fieldname, this.docname),
 			{ no_icon: true },
 			this.doc
 		)
@@ -886,9 +856,16 @@ export class VueForm {
 
 	// Child-table helpers scripts occasionally use (grid rendering works; these read
 	// the model directly, so they don't depend on the deferred grid scripting).
+	// { parentfield: [selected child docnames] } — reads each grid's checkbox
+	// selection from the rendered DOM (form.js:2069 parity).
 	get_selected() {
-		// Grid selection is deferred; return an empty selection map (shape parity).
-		return {}
+		const selected: Record<string, string[]> = {}
+		for (const field of this.fields) {
+			if (!field.grid) continue
+			const _selected = field.grid.get_selected()
+			if (_selected.length) selected[field.df.fieldname] = _selected
+		}
+		return selected
 	}
 
 	get_sum(table: string, fieldname: string) {
