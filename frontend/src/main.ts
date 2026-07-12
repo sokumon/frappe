@@ -158,6 +158,7 @@ async function appendScripts(scripts) {
         script.includes("erpnext") ||
         script.includes("india_compliance")
     )
+    filteredScripts.push(frappe.boot.assets_json['desk_templates.bundle.js'])
     // Boot the ported framework globals before any bundle loads. libs.bundle no
     // longer provides jQuery (installLibs() did, in initFrappe), so these can run
     // unconditionally up front rather than keying off the first non-libs script.
