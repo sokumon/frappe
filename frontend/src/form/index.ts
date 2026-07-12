@@ -11,6 +11,7 @@
 // main.ts installs it mid-`appendScripts`, just before the first erpnext script.
 import { installDialogBridge } from '@/dialog/createDialog'
 import { installScriptManager } from './scriptManager'
+import { installScriptHelpers } from './scriptHelpers'
 import { installQuickEntry } from './quickEntry'
 import { installFormEngine } from './vueForm'
 // frappe.render_template / render / render_grid / render_tree / render_pdf — used
@@ -32,6 +33,9 @@ export function installForm() {
 	installDialogBridge()
 	// frappe.ui.form.on / off / trigger / ScriptManager
 	installScriptManager()
+	// global form helpers scripts call bare: refresh_field / hide_field /
+	// unhide_field / toggle_field / set_field_options / refresh_many
+	installScriptHelpers()
 
 	// Toolbar + save pipeline classes (order among these doesn't matter — they're
 	// only instantiated later, when a form opens; just install before the engine).
