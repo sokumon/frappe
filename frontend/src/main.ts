@@ -27,6 +27,7 @@ import { installDefaults } from "@/boot/defaults"
 import { installPageview } from "@/boot/pageview"
 import { installLibs } from "@/boot/libs"
 import { installKeys } from "@/boot/keys"
+import { installRealtime } from "@/boot/realtime"
 
 // The Vue-native form engine (frappe.ui.form.on / Controller / Form /
 // QuickEntryForm). It replaces the removed `form_vue_shell` bundle and MUST be
@@ -357,6 +358,9 @@ function bootstrap() {
     // doc_update). `getSocketInstance()` reads inject('socket'/'$socket'); the
     // RealTimeClient (frappe.realtime) exposes emit/on/off and proxies to its
     // socket, so provide it directly (init it with the boot socketio port first).
+    // installRealtime is the TS port of socketio_client.js — the desk/list
+    // bundles that used to define frappe.realtime don't load in the shell.
+    installRealtime()
     try {
         frappe.realtime?.init?.(frappe.boot?.socketio_port)
     } catch (e) {

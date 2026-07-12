@@ -19,6 +19,7 @@
     "moment": "2.29.4",
     "moment-timezone": "0.5.35",
     "popper.js": "1.16.1",
+    "socket.io-client": "^4.5.1",
     "sortablejs": "1.15.0",
     "vue": "^3.5.13",
     "vue-router": "^4.2.2"
