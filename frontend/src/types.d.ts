@@ -13,5 +13,13 @@ declare global {
 		// Framework formatting defaults consumed by @framework/ui FormLayout fields.
 		sysdefaults?: any
 		_router?: import('vue-router').Router
+		// Translation alias seeded by boot/translate.ts (ported from translate.js).
+		__?: (txt: string, replace?: any, context?: string | null) => string
+		// Desk globals seeded by boot/provide.ts (ported from provide.js).
+		NEWLINE?: string
+		TAB?: number
+		UP_ARROW?: number
+		DOWN_ARROW?: number
+		cur_frm?: any
 	}
 }

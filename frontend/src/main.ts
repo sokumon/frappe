@@ -12,6 +12,10 @@ import { installDialogBridge } from "@/dialog/createDialog"
 import { installMultiSelectDialogBridge } from "@/dialog/multiSelectDialog"
 import { installBreadcrumbs } from "@/composables/getBreadcrumbs"
 import { installForm } from "@/form"
+import { installProvide } from "@/boot/provide"
+import { installTranslate } from "@/boot/translate"
+import { installModel } from "@/model"
+import { installUser } from "@/boot/user"
 
 // The Vue-native form engine (frappe.ui.form.on / Controller / Form /
 // QuickEntryForm). It replaces the removed `form_vue_shell` bundle and MUST be
@@ -19,9 +23,35 @@ import { installForm } from "@/form"
 // client scripts call frappe.ui.form.on and whose classes extend
 // frappe.ui.form.Controller / QuickEntryForm at module-eval. We install it in the
 // appendScripts loop, just before the first erpnext/india_compliance script.
+// The frappe.model / frappe.meta / frappe.perm / frappe.workflow namespaces
+// (verbatim ports of frappe/model/*.js from the removed desk.bundle). Needs only
+// frappe.provide at eval (the merges use native Object.assign), and must land
+// before erpnext + frappeApp.load_bootinfo (frappe.model.sync). The form
+// engine's controllers reference frappe.model at runtime, so model goes in first.
+let modelInstalled = false
+function installModelOnce() {
+    if (modelInstalled) return
+    installModel()
+    modelInstalled = true
+}
+
+// frappe.user_info / frappe.user.* / session_alive heartbeat (verbatim port of
+// utils/user.js from the removed desk.bundle). Uses jQuery at eval + frappe.ui
+// (from provide), and get_desktop_items reads frappe.model at runtime, so it
+// installs at the same seam as model, just after it. frappeApp.load_bootinfo
+// reads frappe.user_info().fullname, so it must be in before bootstrap().
+let userInstalled = false
+function installUserOnce() {
+    if (userInstalled) return
+    installUser()
+    userInstalled = true
+}
+
 let formEngineInstalled = false
 function installFormEngineOnce() {
     if (formEngineInstalled) return
+    installModelOnce()
+    installUserOnce()
     installForm()
     formEngineInstalled = true
 }
@@ -31,7 +61,6 @@ async function appendScripts(scripts) {
 
     const filteredScripts = scripts.filter(script =>
         script.includes("libs") ||
-        script.includes("list") ||
         script.includes("controls") ||
         script.includes("report") ||
         script.includes("erpnext") ||
@@ -39,6 +68,13 @@ async function appendScripts(scripts) {
     )
     let counter = 0;
     for (const script of filteredScripts) {
+        // Install frappe.model before the first non-libs bundle, since
+        // controls/report may reference frappe.model. Mirrors the original
+        // desk.bundle order (model.js loaded before controls.bundle).
+        if (!script.includes("libs")) {
+            installModelOnce()
+            installUserOnce()
+        }
         // Install the form engine before the first app bundle that depends on it.
         if (script.includes("erpnext") || script.includes("india_compliance")) {
             installFormEngineOnce()
@@ -122,7 +158,15 @@ async function initFrappe() {
     })
     let  values  = await res.json()
     values = values.data
-    if (!window.frappe) window.frappe = {};
+    // Define frappe._ / window.__ (translation) first — it's referenced
+    // pervasively (SetVueGlobals, ported model/* files) and only reads
+    // frappe._messages at runtime, so it's safe before provide.
+    installTranslate()
+    // Seed window.frappe + frappe.provide + the base namespaces BEFORE any desk
+    // bundle is appended. control.js (controls.bundle) and every erpnext client
+    // script call frappe.provide(...) at module-eval, so it must exist first.
+    // Replaces provide.js from the removed desk.bundle ("framework bundle").
+    installProvide()
     window.frappe = { ...window.frappe, ...values }
     // @framework/ui's FormLayout number/currency fields read framework formatting
     // defaults from `window.sysdefaults` (getFormatDefaults). The legacy desk keeps

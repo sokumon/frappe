@@ -1,0 +1,197 @@
+/* Ported verbatim from frappe/public/js/frappe/utils/user.js. Wrapped in an
+ * install fn so it runs after the global `frappe` + frappe.provide + jQuery are
+ * ready. Replaces the file that shipped in the removed desk.bundle
+ * "framework bundle".
+ *
+ * frappe.user_info / update_user_info, frappe.ui.show_change_password_dialog,
+ * frappe.user (full_name/image/abbr/has_role/get_desktop_items/is_report_manager/
+ * get_formatted_email/get_emails), and the session_alive mousemove heartbeat.
+ *
+ * TIMING: uses jQuery ($.extend / $(document).bind) at eval, so must run AFTER
+ * libs.bundle; needs frappe.ui (from provide) present; must be installed before
+ * frappeApp.load_bootinfo, which reads frappe.user_info().fullname. main.ts
+ * installs it at the model seam (first non-libs script).
+ *
+ * Globals ($, __, repl, frappe) resolve off window. */
+/* eslint-disable */
+// @ts-nocheck
+export function installUser() {
+frappe.user_info = function (uid) {
+	if (!uid) uid = frappe.session.user;
+
+	let user_info;
+	if (!(frappe.boot.user_info && frappe.boot.user_info[uid])) {
+		user_info = { fullname: uid || "Unknown" };
+	} else {
+		user_info = frappe.boot.user_info[uid];
+	}
+
+	user_info.abbr = frappe.get_abbr(user_info.fullname);
+	user_info.color = frappe.get_palette(user_info.fullname);
+
+	return user_info;
+};
+
+frappe.update_user_info = function (user_info) {
+	for (let user in user_info) {
+		if (frappe.boot.user_info[user]) {
+			Object.assign(frappe.boot.user_info[user], user_info[user]);
+		} else {
+			frappe.boot.user_info[user] = user_info[user];
+		}
+	}
+};
+
+frappe.ui.show_change_password_dialog = function (user, on_success) {
+	const dialog = new frappe.ui.Dialog({
+		title: __("Change Password"),
+		fields: [
+			{
+				label: __("Set New Password"),
+				fieldtype: "Password",
+				fieldname: "new_password",
+				reqd: 1,
+			},
+			{
+				label: __("Logout From All Devices After Changing Password"),
+				fieldtype: "Check",
+				fieldname: "logout_all_sessions",
+				default: 1,
+			},
+		],
+		primary_action_label: __("Change Password"),
+		primary_action: (values) => {
+			return frappe
+				.call({
+					method: "frappe.core.doctype.user.user.change_password",
+					args: {
+						user: user,
+						new_password: values.new_password,
+						logout_all_sessions: values.logout_all_sessions,
+					},
+				})
+				.then(() => {
+					dialog.hide();
+					frappe.show_alert({ message: __("Password changed"), indicator: "green" });
+					on_success?.();
+				});
+		},
+	});
+	dialog.show();
+};
+
+frappe.provide("frappe.user");
+
+$.extend(frappe.user, {
+	name: "Guest",
+	full_name: function (uid) {
+		return uid === frappe.session.user
+			? __(
+					"You",
+					null,
+					"Name of the current user. For example: You edited this 5 hours ago."
+			  )
+			: frappe.user_info(uid).fullname;
+	},
+	image: function (uid) {
+		return frappe.user_info(uid).image;
+	},
+	abbr: function (uid) {
+		return frappe.user_info(uid).abbr;
+	},
+	has_role: function (rl) {
+		if (typeof rl == "string") rl = [rl];
+		for (var i in rl) {
+			if ((frappe.boot ? frappe.boot.user.roles : ["Guest"]).indexOf(rl[i]) != -1)
+				return true;
+		}
+	},
+	get_desktop_items: function () {
+		// hide based on permission
+		var modules_list = $.map(frappe.boot.allowed_modules, function (icon) {
+			var m = icon.module_name;
+			var type = frappe.modules[m] && frappe.modules[m].type;
+
+			if (frappe.boot.user.allow_modules.indexOf(m) === -1) return null;
+
+			var ret = null;
+			if (type === "module") {
+				if (frappe.boot.user.allow_modules.indexOf(m) != -1 || frappe.modules[m].is_help)
+					ret = m;
+			} else if (type === "page") {
+				if (frappe.boot.allowed_pages.indexOf(frappe.modules[m].link) != -1) ret = m;
+			} else if (type === "list") {
+				if (frappe.model.can_read(frappe.modules[m]._doctype)) ret = m;
+			} else if (type === "view") {
+				ret = m;
+			} else if (type === "setup") {
+				if (
+					frappe.user.has_role("System Manager") ||
+					frappe.user.has_role("Administrator")
+				)
+					ret = m;
+			} else {
+				ret = m;
+			}
+
+			return ret;
+		});
+
+		return modules_list;
+	},
+
+	is_report_manager: function () {
+		return frappe.user.has_role(["Administrator", "System Manager", "Report Manager"]);
+	},
+
+	get_formatted_email: function (email) {
+		var fullname = frappe.user.full_name(email);
+
+		if (!fullname) {
+			return email;
+		} else {
+			// to quote or to not
+			var quote = "";
+
+			// only if these special characters are found
+			// why? To make the output same as that in python!
+			if (fullname.search(/[\[\]\\()<>@,:;".]/) !== -1) {
+				quote = '"';
+			}
+
+			return repl("%(quote)s%(fullname)s%(quote)s <%(email)s>", {
+				fullname: fullname,
+				email: email,
+				quote: quote,
+			});
+		}
+	},
+
+	get_emails: () => {
+		return Object.keys(frappe.boot.user_info).map((key) => frappe.boot.user_info[key].email);
+	},
+
+	/* Normally frappe.user is an object
+	 * having properties and methods.
+	 * But in the following case
+	 *
+	 * if (frappe.user === 'Administrator')
+	 *
+	 * frappe.user will cast to a string
+	 * returning frappe.user.name
+	 */
+	toString: function () {
+		return this.name;
+	},
+});
+
+frappe.session_alive = true;
+$(document).bind("mousemove", function () {
+	if (frappe.session_alive === false) {
+		$(document).trigger("session_alive");
+	}
+	frappe.session_alive = true;
+	if (frappe.session_alive_timeout) clearTimeout(frappe.session_alive_timeout);
+	frappe.session_alive_timeout = setTimeout(() => (frappe.session_alive = false), 30000);
+});
+}
