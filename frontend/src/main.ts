@@ -145,6 +145,7 @@ async function initFrappe() {
     appendStyles(cssFiles)
     if (window.system_timezone) setConfig('systemTimezone', window.system_timezone)
     frappe.toast = toast
+    frappe.show_alert = toast
     // Override the legacy bootstrapped frappe.msgprint (from messages.js) with
     // the frappe-ui <Dialog> bridge. Must run after appendScripts so the desk
     // bundle's definitions are already in place to overwrite.

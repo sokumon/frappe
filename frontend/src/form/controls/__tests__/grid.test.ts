@@ -86,6 +86,16 @@ describe('grid — column ops (reactive child df)', () => {
 		expect(control.grid.get_field('item_code')).toBe(control.grid.get_field('item_code'))
 	})
 
+	it('Table control.get_field guards child-column existence (utils.js pattern)', () => {
+		const control = tableControl(frm)
+		// A "does this child column exist?" guard returning the fieldname / undefined,
+		// distinct from grid.get_field (the get_query stash handle).
+		expect(control.get_field('qty')).toBe('qty')
+		expect(control.get_field('QTY')).toBe('qty') // case-insensitive
+		expect(control.get_field('nonexistent')).toBeUndefined()
+		expect(typeof control.grid.get_field).toBe('function')
+	})
+
 	it('child df ownership is per-cdt-per-form: two grids of the same cdt share dfs', () => {
 		const a = tableControl(frm)
 		// a second table field of the same child doctype

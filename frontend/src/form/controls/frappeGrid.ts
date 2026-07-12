@@ -12,6 +12,8 @@ import type { ControlOpts } from './frappeControl'
 import type { ControlHost } from './host'
 
 declare const frappe: any
+declare const $: any
+declare const __: (...args: any[]) => string
 
 // A stable per-row handle. Its identity is cached by docname (see `grid_rows`) so a
 // script that loops `grid.grid_rows` repeatedly gets the same objects; `doc` is
@@ -131,6 +133,21 @@ export class FrappeGrid {
 	}
 	// Legacy adds a "multiple add" affordance; the Vue grid has none yet (gap).
 	set_multiple_add(_link?: string, _qty?: number) {}
+
+	// Grid custom buttons (erpnext "Get Items From", "Update Rate as per Latest
+	// Purchase", …). The Vue grid has no button rail yet, so these are safe no-ops
+	// (parity with the old grid stub — the button just doesn't render) that return a
+	// detached jQuery button so caller chains (`.addClass()`, `.on("click")`,
+	// `.removeClass()`) don't throw.
+	custom_buttons: Record<string, any> = {}
+	add_custom_button(label: string, _click?: any): any {
+		const btn = $ ? $('<button class="btn btn-xs btn-secondary">').text(label) : undefined
+		if (label) this.custom_buttons[label] = btn
+		return btn
+	}
+	clear_custom_buttons() {
+		this.custom_buttons = {}
+	}
 
 	// --- structural ops ----------------------------------------------------
 	add_new_row(idx?: number): any {
@@ -289,11 +306,53 @@ export class FrappeGrid {
 }
 
 // --- Table controls (own the grid) ------------------------------------------
+// Mirrors legacy `ControlTable`: the value is the child array, so the model methods
+// delegate to the grid rather than the scalar path, and it carries the DIRECT
+// `get_field` helper (distinct from `grid.get_field`) that scripts call on the
+// control itself (erpnext utils.js toggle_serial_batch_fields).
 export class FrappeControlTable extends FrappeControlData {
 	grid: FrappeGrid
 	constructor(opts: ControlOpts) {
 		super(opts)
 		this.grid = new FrappeGrid(this, this.host)
+	}
+
+	// Resolve a CHILD column by fieldname/label (case-insensitive, skipping
+	// no-value types) → its fieldname, else undefined. A "does this column exist?"
+	// guard — NOT the grid's per-field get_query handle.
+	get_field(field_name: string): string | undefined {
+		const target = String(field_name ?? '').toLowerCase()
+		for (const field of this.grid.docfields) {
+			if (frappe.model.no_value_type?.includes(field.fieldtype)) continue
+			const label = field.label || ''
+			if (
+				(field.fieldname || '').toLowerCase() === target ||
+				label.toLowerCase() === target ||
+				(__(label, null, field.parent) || '').toLowerCase() === target
+			) {
+				return field.fieldname
+			}
+		}
+		return undefined
+	}
+
+	get_value(): any {
+		return this.grid.get_data()
+	}
+	refresh_input() {
+		this.grid.refresh()
+	}
+	// A table has no scalar input (legacy no-op); the base would wrongly route this
+	// through frappe.model.set_value on the table field.
+	set_input() {}
+	validate(): any {
+		return this.get_value()
+	}
+	// Best-effort: click the grid's header "select all" checkbox (first checkbox in
+	// the resolved wrapper). No-ops safely when the grid isn't mounted.
+	check_all_rows() {
+		const cb = this.$wrapper?.get?.(0)?.querySelector?.('input[type="checkbox"]')
+		cb?.click?.()
 	}
 }
 

@@ -74,6 +74,20 @@ function isNull(v: any): boolean {
 	return v == null || v === ''
 }
 
+// Stand-in for a DOM `classList` before the dialog mounts (see the `wrapper` getter):
+// legacy `report_error` calls `wrapper.classList.add(...)` pre-show, when there is no
+// root element yet — the class add is a cosmetic no-op there.
+const NOOP_CLASSLIST = {
+	add() {},
+	remove() {},
+	toggle() {
+		return false
+	},
+	contains() {
+		return false
+	},
+}
+
 // --- jQuery-ish stubs -------------------------------------------------------
 // Legacy element refs (`header`, `footer`, `custom_actions`, …) that have no
 // Vue counterpart get an inert chainable so `.addClass()` / `.find()` chains
@@ -905,8 +919,20 @@ export class DialogBridge {
 	// jQuery like the post-make legacy `this.wrapper` (Layout.make reassigns it
 	// to a jQuery node; QuickEntryForm calls `this.wrapper.keydown(...)`). An
 	// unmounted dialog yields an empty set, so chains no-op instead of throwing.
+	// Legacy `frappe.request.report_error` instead treats it as a raw DOM node
+	// (`wrapper.classList.add("msgprint-dialog")`, request.js:657) — and does so
+	// BEFORE show(), when there's no rootEl. So expose a `classList` proxying the
+	// mounted root (a no-op stub pre-mount) so BOTH callers work and a server 500
+	// renders its error dialog instead of throwing a masking TypeError.
 	get wrapper() {
-		return jq(this.state?.rootEl ?? null)
+		const w = jq(this.state?.rootEl ?? null)
+		if (w && w.classList === undefined) {
+			Object.defineProperty(w, 'classList', {
+				configurable: true,
+				get: () => this.state?.rootEl?.classList ?? NOOP_CLASSLIST,
+			})
+		}
+		return w
 	}
 
 	get $wrapper() {

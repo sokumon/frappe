@@ -183,17 +183,23 @@ export class FrappeControl {
 	html(content?: string): any {
 		return this.$wrapper?.html?.(content)
 	}
-}
 
-// --- FrappeControlInput ------------------------------------------------------
-export class FrappeControlInput extends FrappeControl {
-	// Value/label/description mutators route through the reactive df so the Vue
-	// component re-renders; set_mandatory/set_invalid toggle classes on the resolved
-	// wrapper (cosmetic — the Vue control shows the real state).
-	set_input(value: any): Promise<any> | void {
-		// No silent input-only path (accepted gap): writes through to the model.
-		return this.host.set_value(this.fieldname, value)
+	// --- property reads scripts do on the handle (not always via `.df`) ----------
+	get options(): any {
+		return this.df.options
 	}
+	get label(): any {
+		return this.df.label
+	}
+
+	// --- UNIVERSAL mutators (present on EVERY control) ---------------------------
+	// The old lightweight handle exposed these on every `fields_dict` entry, and
+	// scripts rely on it across ALL fieldtypes — e.g. erpnext
+	// `reset_currency_labels(["totals_section"])` calls `set_label` on a SECTION
+	// BREAK (a container control, not a ControlData). So they live on the base:
+	// bodies route through the reactive df / host (so they render) and are harmless
+	// on valueless/container fields. Input-specific mutators (set_mandatory /
+	// set_invalid / set_required / $input) stay on FrappeControlInput below.
 	set_label(label?: string) {
 		if (label !== undefined) this.host.set_df_property(this.fieldname, 'label', label)
 	}
@@ -207,6 +213,18 @@ export class FrappeControlInput extends FrappeControl {
 	set_empty_description() {
 		this.host.set_df_property(this.fieldname, 'description', '')
 	}
+	set_input(value: any): Promise<any> | void {
+		// No silent input-only path (accepted gap): writes through to the model.
+		return this.host.set_value(this.fieldname, value)
+	}
+	set_empty() {}
+}
+
+// --- FrappeControlInput ------------------------------------------------------
+export class FrappeControlInput extends FrappeControl {
+	// Input-only mutators; set_mandatory/set_invalid toggle classes on the resolved
+	// wrapper (cosmetic — the Vue control shows the real state). The label/description
+	// mutators are on the base (universal — see above).
 	set_mandatory(value?: any) {
 		this.$wrapper?.toggleClass?.(
 			'has-error-mandatory',

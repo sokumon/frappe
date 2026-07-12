@@ -156,6 +156,19 @@ describe('control hierarchy (frm host)', () => {
 		expect(() => control.wrapper.addClass('x')).not.toThrow()
 	})
 
+	it('universal mutators resolve on a container control (erpnext relabels sections)', () => {
+		// erpnext reset_currency_labels(["totals_section"]) calls set_label on a
+		// Section Break — the old handle exposed set_label on every entry.
+		const control = buildControl(frm, META[5]) // Section Break
+		expect(typeof control.set_label).toBe('function')
+		expect(typeof control.set_description).toBe('function')
+		expect(typeof control.set_input).toBe('function')
+		control.df.label = 'Totals'
+		control.set_label('Totals (INR)')
+		expect(control.df.label).toBe('Totals (INR)')
+		expect(control.options).toBe(control.df.options)
+	})
+
 	it('disp_status is a lazy getter, settable, defaulting to Write', () => {
 		const control = buildControl(frm, META[0])
 		expect(control.disp_status).toBe('Write')
