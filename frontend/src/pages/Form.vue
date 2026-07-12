@@ -9,12 +9,13 @@
 // rendered by the Vue Navbar. Custom buttons from client scripts flow the same
 // way (frm.add_custom_button -> page.add_inner_button).
 //
-// The document sidebar is split: FormSidebar.vue renders the template (chrome),
-// and the legacy `frappe.ui.form.Sidebar` (created in form.js render_form) drives
-// the dynamic widgets by binding to that markup. It renders into `page.sidebar`,
-// so we point that bridge ref at the `.layout-side-section` container here (which
-// holds FormSidebar) — wrapped in `.old-desk-view` so the scoped sidebar SCSS
-// applies.
+// The document sidebar is fully Vue-native: FormSidebar.vue renders the widgets
+// (image, title, assignments, attachments, tags, shared, likes, follow, meta) from
+// the reactive docinfo, and the script-compat facades installed on the frm
+// (frm.sidebar/attachments/assign_to/shared/tags — see form/sidebarFacades.ts) hold
+// the data + actions so client scripts keep working. We still point the bridge
+// `page.sidebar` ref at the `.layout-side-section` container so `frm.page.sidebar`
+// references resolve.
 //
 // Loading mirrors the legacy `FormFactory` (formview.js): re-render fresh docs in
 // place, fetch stale/missing ones, create-and-reroute for `new` names, and follow
@@ -35,6 +36,7 @@ import { FormLayout, LinkQueryKey } from '@framework/ui/FormLayout'
 import { useFormBridge } from '@/composables/useFormBridge'
 import type { FormBridge } from '@/composables/useFormBridge'
 import FormTimeline from '@/components/FormTimeline.vue'
+import { sidebarVersion } from '@/form/sidebarStore'
 
 // route params: doctype (url slug) and document name
 const props = defineProps<{ doctype: string; name: string }>()
@@ -75,7 +77,6 @@ provide(LinkQueryKey, (fieldname: string, row?: Record<string, any>) => {
 // hidden (kept in the DOM so fields_dict/refresh_field/set_df_property still work).
 const bridge = shallowRef<FormBridge | null>(null)
 const formSchema = computed(() => bridge.value?.layout.value ?? [])
-debugger
 const formDoc = computed(() => bridge.value?.doc ?? null)
 
 // The docname the activity timeline renders for — set only once the doc is loaded
@@ -83,6 +84,18 @@ const formDoc = computed(() => bridge.value?.doc ?? null)
 // empty docname (get_docinfo/get_activity_timeline would fail on ''). Keyed by it
 // so the timeline reconstructs per document.
 const timelineName = ref<string | null>(null)
+
+// Hide the whole document sidebar on new/unsaved docs (parity with the legacy
+// Sidebar.refresh, which toggled the sidebar off when `doc.__islocal`). The aside
+// slot collapses when empty, so the form takes the full width until the doc is saved.
+// Read the REAL frm.doc (the reactive field mirror drops meta keys like name/
+// __islocal), made reactive via the sidebar store version — `frm.sidebar.refresh()`
+// bumps it on every refresh_header, so this re-evaluates after each (re)load.
+const showSidebar = computed(() => {
+	sidebarVersion() // reactive dep (bumped on every form refresh)
+	const doc = form.value?.doc
+	return !!doc && !!doc.name && !doc.__islocal
+})
 
 const title = computed(() =>
 	props.name && !props.name.startsWith('new') ? props.name : frappe.unscrub(doctype)
@@ -154,11 +167,6 @@ onMounted(() => {
 	const pageBody = shell.value?.page?.state.refs.pageBody
 	if (!pageBody) return
 
-	// Point the bridge `page.sidebar` at the form's side-section so the legacy
-	// Sidebar (created in render_form) renders into it instead of the workspace
-	// nav. Set before the form is built so the first refresh wires it.
-	if (formSidebar.value) shell.value!.page.state.refs.sidebar = formSidebar.value
-
 	// Hide the legacy field layout, scoped to this form's page-body (kept in the
 	// DOM so the legacy fields_dict/refresh_field/set_df_property still resolve).
 	pageBody.classList.add('vue-form-active')
@@ -170,7 +178,6 @@ onMounted(() => {
 		// pristine meta) BEFORE the first refresh, so meta-script ops from the very
 		// first `refresh` are captured too.
 		bridge.value = useFormBridge(form.value)
-		debugger
 		loadDoc(props.name)
 	})
 })
@@ -183,13 +190,19 @@ watch(
 	() => props.name,
 	(name) => loadDoc(name)
 )
+
+// Keep the bridge `page.sidebar` pointed at the form's side-section whenever it's
+// mounted (it's gated on `showSidebar`, so it appears/disappears as the doc is
+// saved/new), so any `frm.page.sidebar` reference resolves to this container.
+watch(formSidebar, (el) => {
+	if (el && shell.value) shell.value.page.state.refs.sidebar = el
+})
 </script>
 
 <template>
 	<!-- legacy-styles=false: the field view is the Vue FormLayout, so keep the
-		 legacy desk SCSS (`old-desk-view`) off the main section. The document
-		 sidebar in #aside keeps its own `old-desk-view` wrapper for the legacy
-		 form-sidebar widgets. -->
+		 legacy desk SCSS (`old-desk-view`) off the main section. The document sidebar
+		 in #aside is fully Vue-native and only shown for saved docs (showSidebar). -->
 	<PageShell ref="shell" :title="title" :legacy-styles="false">
 		<!-- The Vue field view, rendered into PageShell's main section
 			 (.layout-main-section). The legacy .std-form-layout renders alongside but
@@ -214,10 +227,10 @@ watch(
 		</div>
 
 		<template #aside>
-			<!-- The legacy frappe.ui.form.Sidebar renders into this
-				 `.layout-side-section` (bridge page.sidebar). `.old-desk-view` scopes
-				 the form-sidebar SCSS; the inline width matches --form-sidebar-width. -->
-			<div class="old-desk-view h-full shrink-0 overflow-auto">
+			<!-- The Vue-native FormSidebar renders into this `.layout-side-section`
+				 (bridge page.sidebar); the inline width matches --form-sidebar-width.
+				 Hidden for new/unsaved docs — the empty aside slot collapses the column. -->
+			<div v-if="showSidebar" class="h-full shrink-0 overflow-auto border-l">
 				<div
 					ref="formSidebar"
 					class="layout-side-section h-full"

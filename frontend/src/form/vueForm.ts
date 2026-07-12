@@ -25,6 +25,8 @@
 // (chrome + save chain) and grid (child-table `.grid.*`, per instruction). Methods
 // that touch those are guarded so the form still loads and scripts still run.
 
+import { installSidebarFacades } from './sidebarFacades'
+
 declare const frappe: any
 declare const $: any
 declare const cur_frm: any
@@ -113,24 +115,6 @@ function makeGridStub(df: any, frm: any): any {
 	})
 }
 
-// --- Sidebar stub (Tier-2, deferred) -----------------------------------------
-// The Vue-native sidebar rebuild is future work; only the title is Vue today. But
-// scripts read `frm.sidebar.*` (reload_docinfo, refresh, image_wrapper, …) — a null
-// would throw. No-op stub keeps them safe until the real sidebar lands.
-function makeSidebarStub(): any {
-	const node = noopNode()
-	const known: Record<string, any> = {
-		sidebar: node,
-		image_wrapper: node,
-		refresh() {},
-		reload_docinfo() {},
-		add_user_action: () => noopNode(),
-	}
-	return new Proxy(known, {
-		get: (t, p: string) => (p in t ? t[p] : () => noopNode()),
-	})
-}
-
 export class VueForm {
 	docname: string
 	doctype: string
@@ -160,12 +144,17 @@ export class VueForm {
 	page: any
 	layout_main: any
 	script_manager: any
-	// legacy code (and our own guards) test `frm.layout`; there is no Vue layout
-	// object — the `<FormLayout>` component owns rendering — so it stays null.
-	layout: Object = {
-		refresh_sections: function(){
-			console.log("Form layout refresh sections")
-		}
+	// The `<FormLayout>` component owns rendering, so there's no real legacy layout
+	// object. Scripts still call `frm.layout.*` in refresh though (e.g. workspace.js:
+	// `frm.layout.message.empty()` + `frm.layout.show_message(...)`), so expose a safe
+	// shim: `message` is a detached jQuery node (empty()/html()/… no-op), and the
+	// message helpers are no-ops (the Vue form has no banner region yet) so the refresh
+	// chain doesn't throw. `$` resolves at construction time (after libs load).
+	layout: any = {
+		refresh_sections: () => {},
+		message: $('<div>'),
+		show_message: (_msg?: string) => {},
+		clear_message: () => {},
 	}
 	doc: any
 	read_only = false
@@ -233,11 +222,13 @@ export class VueForm {
 		this.page = this.wrapper.page
 		this.layout_main = this.page.main?.get?.(0)
 
-		// Dashboard + sidebar are deferred (no Vue region yet), but scripts call
-		// `frm.dashboard.*` / `frm.sidebar.*` in refresh — a null would throw. Stub
-		// them (no-op, safe) so the refresh chain survives.
+		// Dashboard is still deferred (no Vue region yet); scripts call
+		// `frm.dashboard.*` in refresh — a null would throw, so keep the no-op stub.
 		this.dashboard = makeDashboardStub()
-		this.sidebar = makeSidebarStub()
+		// Sidebar is now Vue-native: install the script-compat facades
+		// (frm.sidebar/attachments/assign_to/shared/tags) that FormSidebar.vue renders
+		// from. They hold the data + actions; the Vue component owns the markup.
+		installSidebarFacades(this)
 
 		// The Toolbar drives the Vue Navbar via the page bridge: primary action
 		// (Save/Submit/Update), the ⋯ menu (Delete/Duplicate/Rename/Print…), action
@@ -493,6 +484,10 @@ export class VueForm {
 		}
 		this.viewers?.refresh?.()
 		this.dashboard?.refresh?.()
+		// Vue-native sidebar: re-sync the assignment/attachment/share/tag facades from
+		// the freshly-loaded docinfo and bump the reactive version so FormSidebar.vue
+		// re-renders (legacy render_form called sidebar.refresh() here too).
+		this.sidebar?.refresh?.()
 		// reactive Vue breadcrumbs — pick up the loaded doc's title
 		frappe.breadcrumbs?.update?.()
 		this.clear_custom_buttons()
@@ -914,10 +909,15 @@ export class VueForm {
 	}
 
 	add_web_link(path?: string, label?: string) {
-		// sidebar (add_user_action) is deferred; keep the call safe.
+		// Adds a "See on Website" link to the Vue sidebar's user-actions list
+		// (frm.sidebar.add_user_action); the click opens the doc's public route.
 		if (!this.sidebar) return
-		this.sidebar.add_user_action?.(__(label || 'See on Website'), () => {})
+		this.web_link = this.sidebar.add_user_action?.(__(label || 'See on Website'), () => {
+			const target = path || this.doc.route
+			window.open(target ? '/' + target : '/', '_blank')
+		})
 	}
+	web_link: any = null
 	sidebar: any = null
 
 	// --- SAVE pipeline (ported from form.js) -------------------------------
