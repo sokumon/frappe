@@ -28,6 +28,7 @@ import { installPageview } from "@/boot/pageview"
 import { installLibs } from "@/boot/libs"
 import { installKeys } from "@/boot/keys"
 import { installRealtime } from "@/boot/realtime"
+import { installFormatters } from "@/boot/formatters"
 
 // The Vue-native form engine (frappe.ui.form.on / Controller / Form /
 // QuickEntryForm). It replaces the removed `form_vue_shell` bundle and MUST be
@@ -102,6 +103,19 @@ function installPageviewOnce() {
     pageviewInstalled = true
 }
 
+// frappe.format / frappe.form.formatters / link_formatters (port of
+// form/formatters.js from the removed desk bundle). vueForm.formatValue,
+// useListBridge and utils.build_summary_item call frappe.format at runtime,
+// and erpnext client scripts assign frappe.form.link_formatters[...] at
+// module eval — so this replaces the bare `frappe.form = {link_formatters}`
+// stub and must install before the erpnext bundles.
+let formattersInstalled = false
+function installFormattersOnce() {
+    if (formattersInstalled) return
+    installFormatters()
+    formattersInstalled = true
+}
+
 // frappe.call / frappe.xcall / frappe.request.* — modernized transport
 // (createResource over native fetch) replacing request.js from the removed
 // desk.bundle. Registers $(document).ajaxSend at eval (needs jQuery), and
@@ -146,6 +160,7 @@ function installFormEngineOnce() {
     installDbOnce()
     installLikeOnce()
     installPageviewOnce()
+    installFormattersOnce()
     installForm()
     formEngineInstalled = true
 }
@@ -173,15 +188,15 @@ async function appendScripts(scripts) {
     installDbOnce()
     installLikeOnce()
     installPageviewOnce()
+    installFormattersOnce()
 
     let counter = 0;
     for (const script of filteredScripts) {
         // Install the form engine before the first app bundle that depends on it.
         if (script.includes("erpnext") || script.includes("india_compliance")) {
             installFormEngineOnce()
-            frappe.form =  {
-                link_formatters: {}
-            }
+            // frappe.form (formatters + link_formatters) comes from
+            // installFormattersOnce above — no stub needed.
             frappe.widget = {
                 widget_factory: {
                     number_card: class NumberCard {
