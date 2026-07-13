@@ -202,3 +202,4 @@ cypress/videos
 .playwright-mcp
 
 frappe/public/frontend
+frappe/www/newdesk.html
