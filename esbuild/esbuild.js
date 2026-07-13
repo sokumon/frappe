@@ -600,9 +600,15 @@ async function run_build_command_for_apps(apps) {
 	BUILD_CHILDREN.clear();
 	const build_apps = [];
 	for (let app of apps) {
-		if (app === "frappe") continue;
-
 		let root_app_path = path.resolve(apps_path, app);
+		if (app === "frappe") {
+			// frappe builds twice in one run: its classic bundles were already
+			// built by this very esbuild process (root package.json "build" is the
+			// entry we're running — consulting it here would re-run esbuild), so
+			// this post-step only needs to add the Vue shell in frontend/, which
+			// carries its own package.json + vite build script.
+			root_app_path = path.resolve(root_app_path, "frontend");
+		}
 		let package_json = path.resolve(root_app_path, "package.json");
 
 		if (!fs.existsSync(package_json)) {

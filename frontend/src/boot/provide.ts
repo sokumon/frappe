@@ -47,6 +47,7 @@ export function installProvide() {
 	frappe.provide("frappe.listview_settings")
 	frappe.provide("frappe.tour")
 	frappe.provide("frappe.listview_parent_route")
+	frappe.provide("frappe.treeview_settings")
 
 	// constants
 	window.NEWLINE = "\n"

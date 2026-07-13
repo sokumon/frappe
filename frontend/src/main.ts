@@ -282,12 +282,35 @@ async function appendIcons(icons: string[]) {
 // Resolves only once every filtered script's onload has fired, so callers can
 // rely on frappe.ui.form.*, frappe.model.*, frappe.router etc. being present.
 async function initFrappe() {
-    const res = await fetch('/api/v2/method/frappe.www.frappe.get_context_for_dev', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-    })
-    let  values  = await res.json()
-    values = values.data
+    // Production: www/newdesk.py packs the desk context (boot, csrf_token,
+    // app_include_*) into `context.boot`, which the built newdesk.html
+    // (frappe-ui's jinjaBootData vite plugin) spills onto window["<key>"]
+    // globals. Only the vite dev server — where the page has no jinja
+    // context — needs the dev endpoint.
+    let values
+    console.log("hello")
+    if (window.frappe_boot) {
+        values = {
+            boot: window.frappe_boot,
+            csrf_token: window.csrf_token,
+            app_include_js: window.app_include_js,
+            app_include_css: window.app_include_css,
+            app_include_icons: window.app_include_icons,
+            build_version: window.build_version,
+            desk_theme: window.desk_theme,
+            app_name: window.app_name,
+            lang: window.lang,
+            layout_direction: window.layout_direction,
+            favicon: window.favicon,
+            sounds: window.sounds,
+        }
+    } else {
+        const res = await fetch('/api/v2/method/frappe.www.frappe.get_context_for_dev', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        values = (await res.json()).data
+    }
     // Publish jQuery/$ (+ bootstrap plugins), moment, Sortable, SetVueGlobals on
     // window BEFORE anything else — the ported boot installs (utils/dom/request/
     // user) and the controls/erpnext bundles all use $ at eval. Replaces the
@@ -303,6 +326,54 @@ async function initFrappe() {
     // Replaces provide.js from the removed desk.bundle ("framework bundle").
     installProvide()
     window.frappe = { ...window.frappe, ...values }
+    // desk.html applies these via jinja on the server; newdesk.html is a
+    // build-generated file we can't template, so apply the same chrome at
+    // runtime, before any bundle loads.
+    const themeAttr = (values.desk_theme || "Light").toLowerCase()
+    document.documentElement.setAttribute("data-theme-mode", themeAttr)
+    document.documentElement.setAttribute("data-theme", themeAttr)
+    document.documentElement.setAttribute("dir", values.layout_direction || "ltr")
+    document.documentElement.setAttribute("lang", values.lang || "en")
+    if (values.app_name) document.title = values.app_name
+    const favicon = values.favicon || "/assets/frappe/images/frappe-favicon.svg"
+    for (const rel of ["icon", "shortcut icon"]) {
+        let link = document.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null
+        if (!link) {
+            link = document.createElement("link")
+            link.rel = rel
+            document.head.appendChild(link)
+        }
+        link.href = favicon
+    }
+    // desk.html renders an <audio id="sound-*"> element per hooks sound;
+    // frappe.utils.play_sound looks them up by that id.
+    for (const sound of values.sounds || []) {
+        if (document.getElementById(`sound-${sound.name}`)) continue
+        const audio = document.createElement("audio")
+        audio.id = `sound-${sound.name}`
+        audio.preload = "auto"
+        audio.volume = sound.volume || 1
+        const source = document.createElement("source")
+        source.src = sound.src
+        audio.appendChild(source)
+        document.body.appendChild(audio)
+    }
+    // desk.html starts the boot-translations fetch from an inline script; the
+    // generated newdesk.html can't, so kick it off here for both dev and prod.
+    if (!frappe._translations_loaded) {
+        frappe._translations_loaded = fetch(
+            `/api/method/frappe.translate.get_boot_translations?v=${frappe.boot.translations_version}&lang=${frappe.boot.lang}`,
+            {
+                credentials: "same-origin",
+                headers: {
+                    "X-Frappe-CSRF-Token": frappe.csrf_token,
+                    "Accept": "application/json",
+                },
+            }
+        ).then(r => r.json()).then(data => {
+            frappe._messages = data.message || {}
+        }).catch(() => {})
+    }
     // frappe.defaults (user/global default + user-permission accessors). Pure
     // namespace assignment; reads frappe.model/boot only at call time, so it
     // sits with the other dependency-free boot namespaces. Ported from
@@ -412,6 +483,9 @@ function bootstrap() {
     app.use(router)
     window.frappe._router = router
     app.mount('#app')
+    // newdesk.html shows the splash_screen.html include (like desk.html) while
+    // the bundles load; the legacy desk removes it in Application.startup.
+    document.querySelector('.splash')?.remove()
     isBootstraped = true;
 }
 

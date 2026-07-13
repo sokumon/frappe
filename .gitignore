@@ -200,3 +200,5 @@ cypress/videos
 .aider*
 # Playwright AI
 .playwright-mcp
+
+frappe/public/frontend

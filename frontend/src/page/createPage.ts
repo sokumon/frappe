@@ -146,6 +146,20 @@ function ret<T>(target: T): T {
 			item.data = { ...(item.data || {}), [name]: value }
 			return proxy
 		},
+		// jQuery-ish readers query_report chains on the set_primary_action
+		// handle: `.text()` (label dedupe in add_prepared_report_buttons) and
+		// `.is(":visible")` (toggle_nothing_to_show's re-add gate).
+		text(value?: string) {
+			if (value === undefined) return item.label ?? ''
+			item.label = value
+			return proxy
+		},
+		is(selector: string) {
+			if (selector === ':visible') return !!item.visible
+			if (selector === ':hidden') return !item.visible
+			if (selector === ':disabled') return !!item.disabled
+			return false
+		},
 		// legacy `$el.parent()` walked from an <a> to its wrapping <li>; the flat
 		// menu item has no wrapper, so `.parent()` returns the same proxy and a
 		// following `.attr()` tags the item's data bag (e.g. ListViewSelect's
@@ -395,13 +409,20 @@ export function createPage(opts: PageOptions = {}): Page {
 			state.secondaryAction = makeAction(label, click, icon, workingLabel)
 			return ret(state.secondaryAction)
 		},
+		// Flip `visible` off before dropping the action so stale ret() handles
+		// (e.g. query_report's this.primary_button) answer `.is(":visible")`
+		// with false, matching page.js where clearing removes the button node.
 		clear_primary_action() {
+			if (state.primaryAction) state.primaryAction.visible = false
 			state.primaryAction = null
 		},
 		clear_secondary_action() {
+			if (state.secondaryAction) state.secondaryAction.visible = false
 			state.secondaryAction = null
 		},
 		clear_actions() {
+			if (state.primaryAction) state.primaryAction.visible = false
+			if (state.secondaryAction) state.secondaryAction.visible = false
 			state.primaryAction = null
 			state.secondaryAction = null
 		},

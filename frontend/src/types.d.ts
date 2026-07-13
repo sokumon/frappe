@@ -21,5 +21,20 @@ declare global {
 		UP_ARROW?: number
 		DOWN_ARROW?: number
 		cur_frm?: any
+		// Page context spilled onto window by the built newdesk.html (frappe-ui's
+		// jinjaBootData plugin renders window["<key>"] = ... for every key of
+		// www/newdesk.py's context.boot). Read by initFrappe in main.ts.
+		frappe_boot?: any
+		csrf_token?: string
+		app_include_js?: string[]
+		app_include_css?: string[]
+		app_include_icons?: string[]
+		build_version?: string
+		desk_theme?: string
+		app_name?: string
+		lang?: string
+		layout_direction?: string
+		favicon?: string
+		sounds?: { name: string; src: string; volume?: number }[]
 	}
 }

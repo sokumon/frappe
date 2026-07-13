@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/assets/frappe/frontend/favicon.png" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover, user-scalable=no"
+    />
+    <title>Frappe</title>
+    <script type="module" crossorigin src="/assets/frappe/frontend/assets/index-547606e5.js"></script>
+    <link rel="stylesheet" href="/assets/frappe/frontend/assets/index-79481ce2.css">
+  </head>
+  <body class="h-full">
+    <div id="app" class="h-full"></div>
+
+
+          <script>
+              {% for key in boot %}
+              window["{{ key }}"] = {{ boot[key] | tojson }};
+              {% endfor %}
+          </script>
+          </body>
+
+</html>

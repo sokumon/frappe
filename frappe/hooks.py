@@ -56,6 +56,7 @@ website_route_rules = [
 	{"from_route": "/kb/<category>", "to_route": "Help Article"},
 	{"from_route": "/profile", "to_route": "me"},
 	{"from_route": "/desk/<path:app_path>", "to_route": "desk"},
+	{"from_route": "/newdesk/<path:app_path>", "to_route": "newdesk"},
 ]
 
 website_redirects = [
