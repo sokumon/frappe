@@ -1,4 +1,5 @@
 import "./frappe/ui/desktop_icon.html";
+import "./frappe/widgets/widget_group.js";
 import "./frappe/ui/workspace_loading_skeleton.html";
 import "./frappe/views/workspace/workspace.js";
 import "./frappe/views/workspace/blocks/index.js";
@@ -9,7 +10,6 @@ import "./frappe/list/base_list.js";
 import "./frappe/list/list_view.js";
 import "./frappe/doctype/index.js";
 import "./frappe/views/workspace/blocks/index.js";
-import "./frappe/widgets/widget_group.js";
 import "./frappe/views/reports/report_factory.js";
 import "./frappe/views/reports/report_view.js";
 import "./frappe/views/reports/query_report.js";
