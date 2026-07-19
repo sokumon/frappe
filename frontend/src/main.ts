@@ -29,6 +29,8 @@ import { installLibs } from "@/boot/libs"
 import { installKeys } from "@/boot/keys"
 import { installRealtime } from "@/boot/realtime"
 import { installFormatters } from "@/boot/formatters"
+import { installSearch } from "@/search/searchUtils"
+import { installCommandPaletteShortcuts } from "@/search/commandPalette"
 
 // The Vue-native form engine (frappe.ui.form.on / Controller / Form /
 // QuickEntryForm). It replaces the removed `form_vue_shell` bundle and MUST be
@@ -479,6 +481,14 @@ function bootstrap() {
     // <Navbar> renders breadcrumbs from the route. Runs after router.setup so the
     // slug map + workspaces it reads are ready.
     installBreadcrumbs()
+
+    // frappe.search.utils — the result engine behind the ⌘K palette (port of
+    // ui/toolbar/search_utils.js). Reads frappe.boot.user.recent at install
+    // time, so it runs after load_bootinfo; boot/pageview.ts also pushes into
+    // its results_to_hide at runtime. installCommandPaletteShortcuts points the
+    // ⌘K / ⌘G entries boot/keys.ts already dispatches to at the Vue palette.
+    installSearch()
+    installCommandPaletteShortcuts()
 
     app.use(router)
     window.frappe._router = router
