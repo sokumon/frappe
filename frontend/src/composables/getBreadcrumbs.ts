@@ -22,8 +22,7 @@
 // surviving `.add(...)` calls (workspace / file / page / list) just supplement
 // or override that.
 
-import { h, markRaw, reactive, watch, type Component } from 'vue'
-import { FeatherIcon } from 'frappe-ui'
+import { reactive, watch, type Component } from 'vue'
 import { useWorkspaceSidebar } from '@/composables/getSidebar'
 
 // frappe-ui's BreadcrumbItem (see Breadcrumbs/types.ts). `route` -> router-link,
@@ -96,19 +95,9 @@ function currentRoute(): any[] {
 	return (frappe?.get_route?.() as any[]) || []
 }
 
-// The home crumb's icon. A tiny functional wrapper so <Navbar>'s
-// `<component :is="item.icon" class="size-4" />` can mount it and forward the
-// sizing class; markRaw keeps Vue from making the component reactive.
-const HOME_ICON = markRaw(
-	(_props: Record<string, unknown>, ctx: { attrs: Record<string, unknown> }) =>
-		h(FeatherIcon, { name: 'home', ...ctx.attrs }),
-) as unknown as Component
-
-// "/" is the home route under the app's router base (mirrors legacy "/desk").
-function homeCrumb(): BreadcrumbItem {
-	return { label: '', route: '/', icon: HOME_ICON }
-}
-
+// Breadcrumbs no longer lead with a home crumb. It was icon-only (a house glyph
+// with an empty label), and the workspace rail's app logo already routes home —
+// so the trail starts at the workspace.
 // ---------------------------------------------------------------------------
 // per-view crumb builders (ports of breadcrumbs.js set_*_breadcrumb)
 // ---------------------------------------------------------------------------
@@ -217,7 +206,7 @@ interface Breadcrumbs {
 
 const breadcrumbs = reactive<Breadcrumbs>({
 	all: {},
-	items: [homeCrumb()],
+	items: [],
 	visible: false,
 	preferred: PREFERRED,
 	module_map: MODULE_MAP,
@@ -238,7 +227,7 @@ const breadcrumbs = reactive<Breadcrumbs>({
 		// standard doctype views render without an explicit add() (form is gated).
 		const crumb = breadcrumbs.all[breadcrumbs.current_page()] ?? deriveFromRoute()
 
-		const list: BreadcrumbItem[] = [homeCrumb()]
+		const list: BreadcrumbItem[] = []
 		if (!crumb) {
 			breadcrumbs.items = list
 			breadcrumbs.visible = false
@@ -286,7 +275,7 @@ const breadcrumbs = reactive<Breadcrumbs>({
 	},
 
 	clear() {
-		breadcrumbs.items = [homeCrumb()]
+		breadcrumbs.items = []
 		breadcrumbs.visible = false
 	},
 

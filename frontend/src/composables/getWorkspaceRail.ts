@@ -25,21 +25,16 @@ import {
 import {
   getFirstSidebarRoute,
   resolveIcon,
+  sidebarApp,
   sidebarData,
   slug,
   useWorkspaceSidebar,
+  type AppData,
 } from './getSidebar'
 
 // ---------------------------------------------------------------------------
 // boot shapes (subset of frappe.boot)
 // ---------------------------------------------------------------------------
-
-interface AppData {
-  app_name: string
-  app_title: string
-  app_logo_url: string
-  workspaces: string[]
-}
 
 interface Workspace {
   name: string
@@ -76,27 +71,6 @@ function appData(): AppData[] {
 
 function allWorkspaces(): Record<string, Workspace> {
   return frappe?.workspaces ?? {}
-}
-
-// Resolve a companion app to the host app it's pinned into (via the
-// `add_app_to_rail` hook, surfaced as frappe.boot.app_rail_host). A companion
-// app has no shell of its own — its workspaces live in the host app's rail — so
-// its app context is the host's. Port of Sidebar.rail_host_app.
-function railHostApp(appName: string): string {
-  return frappe?.boot?.app_rail_host?.[appName] || appName
-}
-
-// The app that owns the sidebar currently on screen (port of
-// Sidebar.get_sidebar_app). Custom (non-standard) workspaces belong to no app,
-// so they carry no app context even if an older record has a stale `app` value.
-function sidebarApp(sidebarName: string): AppData | null {
-  if (!sidebarName) return null
-  const workspace = allWorkspaces()[slug(sidebarName)]
-  const data = sidebarData(sidebarName)
-  const appName =
-    workspace && !workspace.standard ? null : workspace?.app || data?.app || null
-  if (!appName) return null
-  return appData().find((a) => a.app_name === railHostApp(appName)) ?? null
 }
 
 // ---------------------------------------------------------------------------

@@ -36,9 +36,21 @@ interface SidebarData {
   header_icon?: string
   module?: string
   app?: string
+  /** Auto-generated from a module — it has no authored icon of its own. */
+  from_module?: number
 }
 
 type AllSidebarItems = Record<string, SidebarData>
+
+/** One entry of `frappe.boot.app_data`. */
+export interface AppData {
+  app_name: string
+  app_title: string
+  app_logo_url: string | string[]
+  app_route?: string
+  on_apps_screen?: boolean
+  workspaces: string[]
+}
 
 // ---------------------------------------------------------------------------
 // frappe-ui Sidebar shapes (see frappe-ui/src/components/Sidebar/types.ts)
@@ -59,8 +71,6 @@ interface SidebarSection {
 
 interface SidebarHeaderConfig {
   title: string
-  subtitle: string
-  logo: unknown
   menuItems: unknown[]
 }
 
@@ -81,6 +91,41 @@ function allSidebarItems(): AllSidebarItems {
 // the proper-case titles, so every lookup goes through this.
 export function sidebarData(name: string): SidebarData | undefined {
   return allSidebarItems()[name?.toLowerCase()]
+}
+
+function appData(): AppData[] {
+  return frappe?.boot?.app_data ?? []
+}
+
+function allWorkspaces(): Record<string, any> {
+  return frappe?.workspaces ?? {}
+}
+
+// `__` is seeded on window by boot/translate.ts and isn't a typed global; resolve
+// it per call so this module doesn't capture it before boot has installed it.
+function __(txt: string): string {
+  return (window as any).__?.(txt) ?? txt
+}
+
+// Resolve a companion app to the host app it's pinned into (via the
+// `add_app_to_rail` hook, surfaced as frappe.boot.app_rail_host). A companion app
+// has no shell of its own — its workspaces live in the host app's rail — so its
+// app context is the host's. Port of Sidebar.rail_host_app.
+function railHostApp(appName: string): string {
+  return frappe?.boot?.app_rail_host?.[appName] || appName
+}
+
+// The app that owns a named sidebar, or null (port of Sidebar.get_sidebar_app).
+// Custom (non-standard) workspaces belong to no app, so they carry no app context
+// even if an older record has a stale `app` value. Both the header (for its title)
+// and the workspace rail (for its workspace set) resolve their app through this.
+export function sidebarApp(name: string): AppData | null {
+  if (!name) return null
+  const workspace = allWorkspaces()[slug(name)]
+  const data = sidebarData(name)
+  const appName = workspace && !workspace.standard ? null : workspace?.app || data?.app || null
+  if (!appName) return null
+  return appData().find((a) => a.app_name === railHostApp(appName)) ?? null
 }
 
 // ---------------------------------------------------------------------------
@@ -168,49 +213,68 @@ function transformItems(rawItems: SidebarItem[]): SidebarSection[] {
 // header
 // ---------------------------------------------------------------------------
 
-function appTitle(appName?: string): string {
-  if (!appName) return ''
-  const app = (frappe?.boot?.app_data ?? []).find((a: any) => a.app_name === appName)
-  return app?.app_title || appName
-}
-
-// Header dropdown items (theme/logout/…). Empty by default; a host can push to
-// it before the first sidebar is built.
+// Extra header dropdown entries. Empty by default; a host can push to it before
+// the first sidebar is built. Appended after the Apps group below.
 const headerMenuItems: unknown[] = []
 
-// Render the header logo as a lucide icon (outlined, `stroke=currentColor`), the
-// same way the sidebar items render theirs — NOT `frappe.utils.icon`, whose
-// frappe sprite draws solid/filled glyphs (e.g. "stock" comes out a black
-// hexagon). `header_icon` is an Icon-field name; `toLucideName` maps it into the
-// lucide sprite and falls back to a generic lucide icon for names lucide lacks.
-// SidebarHeader renders a *string* logo as `<img :src>` and a falsy one as the
-// title-initial fallback, so we return a component (its `<component :is>` branch)
-// that centers the lucide Icon in the 32px logo box. `markRaw` keeps Vue from
-// making the component reactive.
-function buildLogo(headerIcon?: string): Component | false {
-  if (!headerIcon) return false
-  const name = toLucideName(headerIcon)
+// The header's primary line (port of SidebarHeader.get_display_title). It names
+// the app the sidebar belongs to; custom / app-less / module sidebars have none,
+// so they fall back to the workspace title (private workspaces are stored as
+// `${title}-${for_user}`, hence preferring the workspace's own `title`).
+function displayTitle(name: string, data: SidebarData): string {
+  const app = sidebarApp(name)
+  if (app) return app.app_title
+
+  const workspace = allWorkspaces()[slug(name)]
+  if (workspace && !workspace.public && workspace.for_user) return workspace.title
+  return data.label || name
+}
+
+// An app's logo as a menu icon. `app_logo_url` is occasionally a list (hooks can
+// return one), so take the first entry the way the legacy header did.
+function appLogoIcon(app: AppData): Component | undefined {
+  const logo = Array.isArray(app.app_logo_url) ? app.app_logo_url[0] : app.app_logo_url
+  if (!logo) return undefined
   return markRaw(
     (_props: Record<string, unknown>, ctx: { attrs: Record<string, unknown> }) =>
-      h(
-        'span',
-        {
-          ...ctx.attrs,
-          // SidebarHeader passes `class="w-full h-full"`; keep it, center the
-          // icon and give it the header's ink color.
-          class: [ctx.attrs.class as string, 'flex items-center justify-center text-ink-gray-8'],
-        },
-        h(Icon, { name, class: 'size-6' })
-      )
+      h('img', {
+        src: logo,
+        alt: '',
+        class: [ctx.attrs.class as string, 'size-4 rounded-sm object-contain'],
+      })
   ) as unknown as Component
 }
 
-function buildHeader(data: SidebarData): SidebarHeaderConfig {
+// The app switcher (port of SidebarHeader.fetch_apps): every app that opts into
+// the apps screen, as one group of entries. `app_route` points at another app's
+// own SPA (e.g. /crm), so switching is a full page load, not a router push.
+// Legacy also offered its inline workspace selector here, but only when the dock
+// was off — the rail owns workspace switching now, so that list stays dropped.
+function appsMenu(): unknown[] {
+  const apps = appData().filter((app) => app.on_apps_screen)
+  if (!apps.length) return []
+
+  return [
+    {
+      group: __('Apps'),
+      items: apps.map((app) => ({
+        label: app.app_title,
+        icon: appLogoIcon(app),
+        onClick: () => {
+          if (app.app_route) window.location.href = app.app_route
+        },
+      })),
+    },
+  ]
+}
+
+// The header is title + dropdown only: no icon (legacy's set_header_icon chain
+// is dropped — the rail already carries the app logo) and no subtitle. PageShell
+// renders it with `:show-logo="false"`.
+function buildHeader(name: string, data: SidebarData): SidebarHeaderConfig {
   return {
-    title: data.label,
-    subtitle: appTitle(data.app),
-    logo: buildLogo(data.header_icon),
-    menuItems: headerMenuItems,
+    title: displayTitle(name, data),
+    menuItems: [...appsMenu(), ...headerMenuItems],
   }
 }
 
@@ -231,7 +295,7 @@ export function getFirstSidebarRoute(name: string): string | null {
 function buildSidebarConfig(name: string): SidebarConfig | null {
   const data = sidebarData(name)
   if (!data) return null
-  return { header: buildHeader(data), sections: transformItems(data.items) }
+  return { header: buildHeader(name, data), sections: transformItems(data.items) }
 }
 
 // ---------------------------------------------------------------------------

@@ -8,7 +8,7 @@
 // (useWorkspaceSidebar / frappe.app.sidebar); the `sidebarHeader` /
 // `sidebarSections` props override that when a caller supplies them.
 import { computed, onMounted, useTemplateRef } from 'vue'
-import { Sidebar } from 'frappe-ui'
+import { Sidebar, SidebarCollapseToggle, SidebarHeader, SidebarSection } from 'frappe-ui'
 import Navbar from './Navbar.vue'
 import Footer from './Footer.vue'
 import { createPage } from '@/page/createPage'
@@ -105,14 +105,35 @@ defineExpose({ page })
 
 <template>
 	<div ref="wrapper" class="flex h-full w-full overflow-hidden">
-		<Sidebar
-			v-if="sidebar"
-			ref="sidebarRef"
-			:header="resolvedHeader"
-			:sections="resolvedSections"
-			class="shrink-0"
-			:class="sidebarOrder"
-		/>
+		<!-- Composed rather than driven by Sidebar's `header`/`sections` props: that
+			 config path is deprecated, and it doesn't forward `showLogo`, which is the
+			 only way to drop the header's logo box (a falsy `logo` renders the
+			 title-initial square instead of nothing). The body below mirrors what the
+			 config path renders, minus the logo. -->
+		<Sidebar v-if="sidebar" ref="sidebarRef" class="shrink-0" :class="sidebarOrder">
+			<div class="flex h-full flex-col p-2">
+				<SidebarHeader
+					v-if="resolvedHeader"
+					:title="resolvedHeader.title"
+					:menu-items="resolvedHeader.menuItems"
+					:show-logo="false"
+				/>
+
+				<div class="flex-1 overflow-y-auto overflow-x-hidden">
+					<SidebarSection
+						v-for="section in resolvedSections"
+						:key="section.label"
+						:label="section.label"
+						:items="section.items"
+						:collapsible="section.collapsible"
+					/>
+				</div>
+
+				<div class="mt-auto">
+					<SidebarCollapseToggle />
+				</div>
+			</div>
+		</Sidebar>
 
 		<div
 			id="page-wrapper"
