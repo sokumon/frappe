@@ -9,12 +9,18 @@ export interface PageOptions {
 	title?: string
 	sidebar?: boolean // default true; configurable per view
 	sidebarPosition?: 'Left' | 'Right'
+	// Page-level opt-out for the workspace rail (WorkspaceRail.vue), the port of
+	// the legacy Sidebar.page_hides_dock check. Independent of `sidebar`: a
+	// single-column page still gets the rail; only a page that hides the whole
+	// sidebar (or sets this outright) drops it — e.g. the apps/desktop screen.
+	hideWorkspaceDock?: boolean
 
 	// Legacy `make_app_page` options, kept so the bridge can map them. New code
 	// should use the fields above instead.
 	parent?: any
 	single_column?: boolean
 	hide_sidebar?: boolean
+	hide_workspace_dock?: boolean
 	sidebar_position?: 'Left' | 'Right'
 	[key: string]: any
 }
@@ -98,6 +104,10 @@ export interface PageIcon {
 
 export interface PageState {
 	title: string
+	// Whether this page hides the workspace rail. Lives on the state (not just
+	// PageShell's props) so the legacy bridge can set it on a shell page a page
+	// script adopts via make_app_page.
+	hideWorkspaceDock: boolean
 	subtitle: string
 	titleIcon: string
 	indicator: PageIndicator | null

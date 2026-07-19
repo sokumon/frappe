@@ -281,6 +281,7 @@ function pushUnique(list: PageMenuItem[], item: PageMenuItem): PageMenuItem {
 export function createPage(opts: PageOptions = {}): Page {
 	const state = reactive<PageState>({
 		title: opts.title ?? '',
+		hideWorkspaceDock: !!opts.hideWorkspaceDock,
 		subtitle: '',
 		titleIcon: '',
 		indicator: null,
@@ -872,13 +873,25 @@ export function installPageBridge() {
 		// If the node already has a page (PageShell bound one before the script
 		// ran), reuse it so the script drives that chrome instead of a detached
 		// page no Navbar renders.
+		// Legacy parity (Sidebar.page_hides_dock): a page that hides the whole
+		// sidebar hides the workspace rail too, as does the dedicated option.
+		// `single_column` deliberately does NOT — it only drops the body sidebar.
+		const hidesDock = !!(opts.hide_sidebar || opts.hide_workspace_dock)
+
 		const existing = parentEl?.page || parent?.page
-		if (existing) return existing
+		if (existing) {
+			// The script adopted a PageShell-owned page, so its own options never
+			// reached the shell. Carry the opt-out over; only ever set it, so a
+			// script that doesn't ask can't un-hide a rail the view hid.
+			if (hidesDock) existing.state.hideWorkspaceDock = true
+			return existing
+		}
 
 		const page = createPage({
 			...opts,
 			sidebar: !opts.single_column && !opts.hide_sidebar,
 			sidebarPosition: opts.sidebar_position,
+			hideWorkspaceDock: hidesDock,
 		})
 
 		// Legacy parity: `this.wrapper = $(this.parent)`. PageShell-hosted pages

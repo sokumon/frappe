@@ -79,7 +79,7 @@ function allSidebarItems(): AllSidebarItems {
 
 // `allSidebarItems()` is keyed by `sidebar_title.lower()`; names we resolve are
 // the proper-case titles, so every lookup goes through this.
-function sidebarData(name: string): SidebarData | undefined {
+export function sidebarData(name: string): SidebarData | undefined {
   return allSidebarItems()[name?.toLowerCase()]
 }
 
@@ -89,7 +89,7 @@ function sidebarData(name: string): SidebarData | undefined {
 
 // `to` must be a real app route (vue-router), so we slug names the same way the
 // router does (frappe.router.slug) instead of emitting legacy desk paths.
-function slug(name: string): string {
+export function slug(name: string): string {
   return frappe?.router?.slug ? frappe.router.slug(name) : name.toLowerCase().replace(/ /g, '-')
 }
 
@@ -131,7 +131,7 @@ function toLucideName(iconStr: string | null): string {
   return name && lucideHas(name) ? name : DEFAULT_ICON
 }
 
-function resolveIcon(iconStr: string | null): Component {
+export function resolveIcon(iconStr: string | null): Component {
   const name = toLucideName(iconStr)
   return markRaw(
     (_props: Record<string, unknown>, ctx: { attrs: Record<string, unknown> }) =>
@@ -212,6 +212,19 @@ function buildHeader(data: SidebarData): SidebarHeaderConfig {
     logo: buildLogo(data.header_icon),
     menuItems: headerMenuItems,
   }
+}
+
+// Route of the first navigable item in a workspace's sidebar, or null when it has
+// none (port of legacy Sidebar.get_first_sidebar_route). The workspace rail lands
+// on this rather than the bare workspace page, so switching workspaces opens the
+// thing you actually work in.
+export function getFirstSidebarRoute(name: string): string | null {
+  for (const item of sidebarData(name)?.items ?? []) {
+    if (item.type === 'Section Break') continue
+    const route = buildRoute(item)
+    if (route) return route
+  }
+  return null
 }
 
 // Build the frappe-ui config for a named sidebar (no selection / side effects).

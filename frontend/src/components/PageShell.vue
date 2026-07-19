@@ -14,6 +14,7 @@ import Footer from './Footer.vue'
 import { createPage } from '@/page/createPage'
 import { providePage } from '@/page/usePage'
 import { useWorkspaceSidebar } from '@/composables/getSidebar'
+import { useHideWorkspaceRail } from '@/composables/getWorkspaceRail'
 import OldDeskView from './OldDeskView.vue'
 
 // Only the render-relevant subset of PageOptions; the legacy passthrough fields
@@ -25,6 +26,11 @@ const props = withDefaults(
 		sidebarPosition?: 'Left' | 'Right'
 		sidebarHeader?: Record<string, any>
 		sidebarSections?: any[]
+		// Hide the workspace rail (App.vue's WorkspaceRail) while this page is
+		// on screen — the port of the legacy `hide_workspace_dock` page option.
+		// Independent of `sidebar`: a single-column page keeps the rail; the
+		// apps/desktop screen is what this is for.
+		hideWorkspaceDock?: boolean
 		// Apply the legacy desk SCSS scope (`old-desk-view`) to the main section.
 		// Views rendering their own Vue UI into the default slot (e.g. the Form's
 		// FormLayout) pass `false` so that SCSS doesn't bleed into them.
@@ -41,6 +47,12 @@ const props = withDefaults(
 // Each PageShell owns one page; descendants drive it via usePage().
 const page = createPage(props)
 providePage(page)
+
+// The workspace rail lives in App.vue, above the router, so a page opts out by
+// declaring it here rather than by not rendering it. Driven off the page state
+// (not the prop) so a legacy page script that adopts this page via
+// make_app_page({ hide_sidebar: 1 }) hides the rail too.
+useHideWorkspaceRail(() => page.state.hideWorkspaceDock)
 
 // The shared workspace sidebar, resolved from the current route (and published
 // as frappe.app.sidebar). Explicit `sidebarHeader`/`sidebarSections` props win;
