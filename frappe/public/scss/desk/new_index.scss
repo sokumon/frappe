@@ -74,8 +74,9 @@
 	@import "navbar";
 	@import "search_widget";
 	@import "slides";
-	@import "toast";
 	@import "breadcrumb";
+	@import "card";
+	@import "workspace_dock";
 	@import "../common/indicator";
 	@import "tags";
 	@import "page";
@@ -112,7 +113,7 @@
 	@import "version";
 	@import "menu";
 	@import "sidebar_header";
-	@import "sidebar_card";
+	@import "card";
 
 	// `.form-tabs-list` is `position: sticky` (form.scss) but its `top` is normally
 	// set by layout.js's scroll handler via `.form-tabs-sticky-*`. In the new shell
