@@ -184,7 +184,10 @@ def add_standard_navbar_items():
 
 def auto_generate_icons_and_sidebar(app_name=None):
 	"""Auto Create desktop icons and workspace sidebars."""
-	from frappe.desk.doctype.desktop_icon.desktop_icon import create_desktop_icons
+	from frappe.desk.doctype.desktop_icon.desktop_icon import (
+		create_desktop_icons,
+		get_app_desktop_icon,
+	)
 	from frappe.desk.doctype.workspace_sidebar.workspace_sidebar import (
 		create_workspace_sidebar_for_workspaces,
 	)
@@ -192,11 +195,14 @@ def auto_generate_icons_and_sidebar(app_name=None):
 	try:
 		print("Creating Workspace Sidebars")
 		create_workspace_sidebar_for_workspaces()
-		print("Creating Desktop Icons")
-		create_desktop_icons()
-		# Save the generated icons
-		frappe.db.commit()  # nosemgrep
-		# Save the genreated sidebar links
+
+		if app_name and get_app_desktop_icon(app_name):
+			print(f"Desktop Icon for {app_name} already exists, skipping")
+		else:
+			print("Creating Desktop Icons")
+			create_desktop_icons()
+
+		# Save the generated icons and sidebar links
 		frappe.db.commit()  # nosemgrep
 	except Exception as e:
 		print(f"Error creating icons {e}")
