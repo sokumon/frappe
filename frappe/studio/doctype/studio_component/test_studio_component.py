@@ -113,10 +113,20 @@ class TestPublishStudioComponent(IntegrationTestCase):
 
 		self.assertIsNone(result["build_error"])
 		self.assertIn(result["island"], get_ui_islands())
-		self.assertEqual(
-			get_island_assets(result["island"])["js"], f"/files/islands/{self.component.name}/a.island.js"
-		)
+		self.assertEqual(get_island_assets(result["island"])["js"], self.builder.base + "a.island.js")
+		self.assertTrue(self.builder.base.startswith(f"/files/islands/{self.component.name}/"))
 		self.assertTrue(os.path.isabs(self.builder.out_dir))
+
+	def test_publishing_again_keeps_the_previous_build_for_open_sessions(self):
+		self.publish()
+		first = self.builder.out_dir
+		self.publish()
+		second = self.builder.out_dir
+		self.publish()
+
+		self.assertTrue(os.path.isdir(second))
+		self.assertTrue(os.path.isdir(self.builder.out_dir))
+		self.assertFalse(os.path.exists(first))
 
 	def test_the_island_carries_only_what_the_renderer_reads(self):
 		self.publish()
@@ -130,12 +140,25 @@ class TestPublishStudioComponent(IntegrationTestCase):
 		island = self.publish()["island"]
 
 		self.component.delete()
+		self.assertIn(island, get_ui_islands())
+		frappe.db.after_commit.run()
+
+		self.assertNotIn(island, get_ui_islands())
+
+	def test_renaming_a_published_component_unpublishes_the_old_island(self):
+		island = self.publish()["island"]
+
+		frappe.rename_doc("Studio Component", self.component.name, self.component.name + "_renamed")
+		frappe.db.after_commit.run()
 
 		self.assertNotIn(island, get_ui_islands())
 
 	def test_only_a_system_manager_can_publish(self):
 		user = frappe.get_doc(
-			doctype="User", email="studio-publisher@example.com", first_name="Studio Publisher"
+			doctype="User",
+			email="studio-publisher@example.com",
+			first_name="Studio Publisher",
+			send_welcome_email=0,
 		)
 		if not frappe.db.exists("User", user.email):
 			user.insert(ignore_permissions=True)

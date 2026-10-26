@@ -2,10 +2,26 @@ frappe.ui.form.ControlVueComponent = class ControlVueComponent extends frappe.ui
 	make() {
 		super.make();
 		if (this.frm) {
-			const update = frappe.utils.debounce(() => this.island?.update(this.get_props()), 300);
-			const event = `dirty.vue_component_${this.df.fieldname}`;
-			$(this.frm.wrapper).off(event).on(event, update);
+			this.dirty_event = `dirty.vue_component_${frappe.utils.get_random(8)}`;
+			$(this.frm.wrapper).on(
+				this.dirty_event,
+				frappe.utils.debounce(() => this.update(), 300)
+			);
 		}
+	}
+
+	update() {
+		if (!this.wrapper.isConnected) {
+			this.release();
+			return;
+		}
+		this.island?.update(this.get_props());
+	}
+
+	release() {
+		$(this.frm.wrapper).off(this.dirty_event);
+		this.island?.unmount();
+		this.island = null;
 	}
 
 	refresh_input() {

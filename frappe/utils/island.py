@@ -20,8 +20,10 @@ The `.island.js` and `.island.css` key forms differ from the legacy `.bundle.js`
 one, so the module loader and the classic loader never claim the same asset.
 """
 
+import os
 import re
 import shutil
+import tempfile
 
 import frappe
 from frappe import _
@@ -105,8 +107,11 @@ def get_manifest_without(name: str) -> dict[str, str]:
 
 def write_site_island_manifest(assets: dict[str, str]) -> None:
 	frappe.create_folder(get_site_islands_path())
-	with open(get_site_islands_path(SITE_ISLANDS_MANIFEST), "w") as manifest:
+	manifest_path = get_site_islands_path(SITE_ISLANDS_MANIFEST)
+	# readers take no lock, so they must never see a half-written file
+	with tempfile.NamedTemporaryFile("w", dir=get_site_islands_path(), delete=False) as manifest:
 		manifest.write(frappe.as_json(assets))
+	os.replace(manifest.name, manifest_path)
 	frappe.client_cache.delete_value(SITE_ISLANDS_CACHE_KEY)
 
 

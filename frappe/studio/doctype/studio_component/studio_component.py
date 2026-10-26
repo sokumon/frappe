@@ -3,6 +3,7 @@
 
 import os
 import re
+from functools import partial
 
 import frappe
 from frappe import _
@@ -88,9 +89,12 @@ class StudioComponent(Document):
 			)
 			return {"island": None, "build_error": {"error_log": error_log.name}}
 
+	def after_rename(self, old: str, new: str, merge: bool = False):
+		unpublish_after_commit(old)
+
 	def on_trash(self):
 		validate_standard_app_change(self)
-		remove_site_island(get_island_name(self.name), self.name)
+		unpublish_after_commit(self.name)
 		if frappe.conf.developer_mode:
 			self.delete_files()
 
@@ -99,6 +103,11 @@ class StudioComponent(Document):
 		for folder in get_studio_folders():
 			for app_folder in os.listdir(folder):
 				delete_file(folder, app_folder, "studio_components", f"{frappe.scrub(self.name)}.json")
+
+
+def unpublish_after_commit(component_id: str):
+	"""Remove the component's site island once the delete or rename is final."""
+	frappe.db.after_commit.add(partial(remove_site_island, get_island_name(component_id), component_id))
 
 
 def get_island_name(component_id: str) -> str:

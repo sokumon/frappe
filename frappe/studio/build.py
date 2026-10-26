@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import traceback
@@ -350,8 +351,11 @@ class StudioComponentIslandBuilder(StudioAppBuilder):
 	def __init__(self, component_id: str):
 		super().__init__(studio_app=component_id, is_standard=False)
 		self.island_name = get_island_name(component_id)
-		self.out_dir = os.path.abspath(get_site_islands_path(component_id))
-		self.base = f"/files/{SITE_ISLANDS_FOLDER}/{component_id}/"
+		# a new folder per build, because open sessions still load the previous one
+		version = frappe.generate_hash(length=10)
+		self.component_folder = os.path.abspath(get_site_islands_path(component_id))
+		self.out_dir = os.path.join(self.component_folder, version)
+		self.base = f"/files/{SITE_ISLANDS_FOLDER}/{component_id}/{version}/"
 		self.component_docs: dict[str, dict] = {}
 
 	def build(self):
@@ -371,6 +375,17 @@ class StudioComponentIslandBuilder(StudioAppBuilder):
 			frappe.read_file(os.path.join(self.out_dir, "island.json"), raise_not_found=True)
 		)
 		set_site_island_assets(self.island_name, island.js, island.css)
+		self._remove_old_builds()
+
+	def _remove_old_builds(self, keep: int = 2):
+		"""Keep this build and the one before it."""
+		builds = sorted(
+			(entry for entry in os.scandir(self.component_folder) if entry.is_dir()),
+			key=lambda entry: entry.stat().st_mtime,
+			reverse=True,
+		)
+		for entry in builds[keep:]:
+			shutil.rmtree(entry.path, ignore_errors=True)
 
 	def _add_studio_components(self, block: dict):
 		self._add_studio_component(block.get("componentName"))
