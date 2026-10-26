@@ -11,6 +11,7 @@ from frappe.studio.doctype.studio_app.test_studio_app import (
 	make_studio_app,
 	make_studio_page,
 )
+from frappe.studio.doctype.studio_component.studio_component import get_island_name
 from frappe.tests import IntegrationTestCase
 from frappe.tests.test_island import keep_site_islands
 from frappe.utils.island import get_island_assets, get_ui_islands
@@ -117,6 +118,23 @@ class TestPublishStudioComponent(IntegrationTestCase):
 		self.assertTrue(self.builder.base.startswith(f"/files/islands/{self.component.name}/"))
 		self.assertTrue(os.path.isabs(self.builder.out_dir))
 
+	def make_vue_component_field(self, island):
+		"""A Custom Field row with no schema sync, whose DDL would commit the test's transaction."""
+		field = frappe.get_doc(
+			doctype="Custom Field",
+			dt="ToDo",
+			fieldname="summary_" + frappe.generate_hash(length=6),
+			fieldtype="Vue Component",
+			options=island,
+		)
+		field.db_insert()
+		return field
+
+	def test_a_component_a_form_shows_cannot_be_deleted(self):
+		self.make_vue_component_field(self.publish()["island"])
+
+		self.assertRaises(frappe.ValidationError, self.component.delete)
+
 	def test_publishing_again_keeps_the_previous_build_for_open_sessions(self):
 		self.publish()
 		first = self.builder.out_dir
@@ -139,6 +157,19 @@ class TestPublishStudioComponent(IntegrationTestCase):
 		self.assertTrue(os.path.isdir(live))
 		self.assertFalse(os.path.exists(failed))
 
+	def test_the_old_folder_of_a_renamed_component_goes_once_unused(self):
+		self.publish()
+		old_folder = self.builder.component_folder
+		frappe.rename_doc("Studio Component", self.component.name, self.component.name + "_renamed")
+		frappe.db.after_commit.run()
+		self.component = frappe.get_doc("Studio Component", self.component.name + "_renamed")
+
+		self.publish()
+		self.assertTrue(os.path.isdir(old_folder))
+		self.publish()
+
+		self.assertFalse(os.path.exists(old_folder))
+
 	def test_the_island_carries_only_what_the_renderer_reads(self):
 		self.publish()
 
@@ -156,13 +187,19 @@ class TestPublishStudioComponent(IntegrationTestCase):
 
 		self.assertNotIn(island, get_ui_islands())
 
-	def test_renaming_a_published_component_unpublishes_the_old_island(self):
-		island = self.publish()["island"]
+	def test_renaming_a_published_component_moves_its_island_and_fields(self):
+		old_island = self.publish()["island"]
+		old_js = get_island_assets(old_island)["js"]
+		field = self.make_vue_component_field(old_island)
+		new_name = self.component.name + "_renamed"
 
-		frappe.rename_doc("Studio Component", self.component.name, self.component.name + "_renamed")
+		frappe.rename_doc("Studio Component", self.component.name, new_name)
 		frappe.db.after_commit.run()
 
-		self.assertNotIn(island, get_ui_islands())
+		new_island = get_island_name(new_name)
+		self.assertNotIn(old_island, get_ui_islands())
+		self.assertEqual(get_island_assets(new_island)["js"], old_js)
+		self.assertEqual(frappe.db.get_value("Custom Field", field.name, "options"), new_island)
 
 	def test_only_a_system_manager_can_publish(self):
 		user = frappe.get_doc(

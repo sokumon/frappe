@@ -9,6 +9,7 @@ from frappe.tests import IntegrationTestCase
 from frappe.utils.island import (
 	SITE_ISLANDS_CACHE_KEY,
 	get_island_assets,
+	get_site_islands_manifest_path,
 	get_site_islands_path,
 	get_ui_islands,
 	page_island_name,
@@ -85,14 +86,14 @@ class TestUiIslandsRegistry(IntegrationTestCase):
 
 def keep_site_islands(test_case):
 	"""Put the site's own islands back as they were once the test ends."""
-	manifest = get_site_islands_path("islands.json")
+	manifest = get_site_islands_manifest_path()
 	folder_existed = os.path.exists(get_site_islands_path())
 	saved_manifest = frappe.read_file(manifest)
 
 	def restore():
 		if not folder_existed:
 			shutil.rmtree(get_site_islands_path(), ignore_errors=True)
-		elif saved_manifest is None:
+		if saved_manifest is None:
 			os.path.exists(manifest) and os.remove(manifest)
 		else:
 			with open(manifest, "w") as file:
@@ -133,10 +134,17 @@ class TestSiteIslands(IntegrationTestCase):
 		set_site_island_assets("site.studio.summary", "/files/islands/summary/a.js", None)
 		frappe.create_folder(get_site_islands_path("summary"))
 
-		remove_site_island("site.studio.summary", "summary")
+		remove_site_island("site.studio.summary")
 
 		self.assertNotIn("site.studio.summary", get_ui_islands())
 		self.assertFalse(os.path.exists(get_site_islands_path("summary")))
+
+	def test_the_manifest_is_not_in_public_files(self):
+		set_site_island_assets("site.studio.summary", "/files/islands/summary/a.js", None)
+
+		self.assertTrue(os.path.exists(get_site_islands_manifest_path()))
+		self.assertFalse(os.path.exists(get_site_islands_path("islands.json")))
+		self.assertTrue(get_site_islands_manifest_path().startswith(frappe.get_site_path("private")))
 
 	def test_the_site_island_assets_reach_the_browser_through_boot(self):
 		set_site_island_assets("site.studio.summary", "/files/islands/summary/a.js", None)

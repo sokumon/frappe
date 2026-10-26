@@ -13,7 +13,15 @@ from frappe.studio.export import delete_file, parse_json, remove_empty_values, v
 from frappe.studio.realtime import publish_doc_change
 from frappe.studio.sync_json import get_studio_folders
 from frappe.studio.utils import validate_file_name, walk_blocks
-from frappe.utils.island import SITE_ISLAND_PREFIX, remove_site_island
+from frappe.utils.island import (
+	ISLAND_JS_SUFFIX,
+	SITE_ISLAND_PREFIX,
+	get_site_island_assets,
+	get_vue_component_doctypes,
+	remove_site_island,
+	rename_site_island,
+	repoint_vue_component_fields,
+)
 
 ISLAND_COMPONENT_ID = re.compile(r"^[\w.-]+$")
 
@@ -90,13 +98,28 @@ class StudioComponent(Document):
 			return {"island": None, "build_error": {"error_log": error_log.name}}
 
 	def after_rename(self, old: str, new: str, merge: bool = False):
-		unpublish_after_commit(old)
+		"""The published build moves to the new name as it is; publishing again rebuilds it."""
+		old_island, new_island = get_island_name(old), get_island_name(new)
+		if old_island + ISLAND_JS_SUFFIX not in get_site_island_assets():
+			return
+		repoint_vue_component_fields(old_island, new_island)
+		frappe.db.after_commit.add(partial(rename_site_island, old_island, new_island))
 
 	def on_trash(self):
 		validate_standard_app_change(self)
+		self.validate_not_shown_in_forms()
 		unpublish_after_commit(self.name)
 		if frappe.conf.developer_mode:
 			self.delete_files()
+
+	def validate_not_shown_in_forms(self):
+		if doctypes := get_vue_component_doctypes(get_island_name(self.name)):
+			frappe.throw(
+				_("Component {0} is shown in a Vue Component field of {1}. Remove the field first.").format(
+					frappe.bold(self.name), ", ".join(frappe.bold(doctype) for doctype in sorted(doctypes))
+				),
+				title=_("Component in Use"),
+			)
 
 	def delete_files(self):
 		"""Every standard page using a component exports it, so its file can be in several apps"""
@@ -106,8 +129,8 @@ class StudioComponent(Document):
 
 
 def unpublish_after_commit(component_id: str):
-	"""Remove the component's site island once the delete or rename is final."""
-	frappe.db.after_commit.add(partial(remove_site_island, get_island_name(component_id), component_id))
+	"""Remove the component's site island once the delete is final."""
+	frappe.db.after_commit.add(partial(remove_site_island, get_island_name(component_id)))
 
 
 def get_island_name(component_id: str) -> str:

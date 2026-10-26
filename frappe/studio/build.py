@@ -19,7 +19,9 @@ from frappe.utils.island import (
 	ISLAND_JS_SUFFIX,
 	SITE_ISLANDS_FOLDER,
 	get_site_island_assets,
+	get_site_island_folder,
 	get_site_islands_path,
+	remove_unused_site_island_folders,
 	set_site_island_assets,
 )
 
@@ -379,6 +381,7 @@ class StudioComponentIslandBuilder(StudioAppBuilder):
 		previous_js = get_site_island_assets().get(self.island_name + ISLAND_JS_SUFFIX)
 		set_site_island_assets(self.island_name, island.js, island.css)
 		self._remove_old_builds(keep={self.version, self._get_version(previous_js)})
+		remove_unused_site_island_folders(keep={get_site_island_folder(previous_js)})
 
 	def _remove_old_builds(self, keep: set[str | None]):
 		"""Delete every build except this one and the one open sessions still load."""
@@ -387,7 +390,7 @@ class StudioComponentIslandBuilder(StudioAppBuilder):
 				shutil.rmtree(entry.path, ignore_errors=True)
 
 	def _get_version(self, js_url: str | None) -> str | None:
-		"""The build folder a registered island URL points into."""
+		"""The build folder a registered island URL points into, when it is this component's."""
 		prefix = f"/files/{SITE_ISLANDS_FOLDER}/{self.app_name}/"
 		if js_url and js_url.startswith(prefix):
 			return js_url.removeprefix(prefix).split("/", 1)[0]

@@ -76,11 +76,23 @@ def get_site_island_assets() -> dict[str, str]:
 
 
 def read_site_island_manifest() -> dict[str, str]:
-	return frappe.parse_json(frappe.read_file(get_site_islands_path(SITE_ISLANDS_MANIFEST))) or {}
+	return frappe.parse_json(frappe.read_file(get_site_islands_manifest_path())) or {}
+
+
+def get_site_islands_manifest_path() -> str:
+	"""Private, because it lists every build URL and the server is its only reader."""
+	return get_files_path(SITE_ISLANDS_MANIFEST, is_private=True)
 
 
 def get_site_islands_path(*path: str) -> str:
 	return get_files_path(SITE_ISLANDS_FOLDER, *path)
+
+
+def get_site_island_folder(url: str | None) -> str | None:
+	"""The folder under the site's islands folder that a built file URL points into."""
+	prefix = f"/files/{SITE_ISLANDS_FOLDER}/"
+	if url and url.startswith(prefix):
+		return url.removeprefix(prefix).split("/", 1)[0]
 
 
 def set_site_island_assets(name: str, js: str, css: str | None) -> None:
@@ -93,11 +105,60 @@ def set_site_island_assets(name: str, js: str, css: str | None) -> None:
 		write_site_island_manifest(assets)
 
 
-def remove_site_island(name: str, folder: str) -> None:
-	"""Unregister a site island and delete the folder its build wrote."""
+def rename_site_island(old: str, new: str) -> None:
+	"""Register the build of island `old` as island `new`. The built files stay where they are."""
+	with filelock(SITE_ISLANDS_CACHE_KEY):
+		manifest = read_site_island_manifest()
+		assets = get_manifest_without(old)
+		for suffix in (ISLAND_JS_SUFFIX, ISLAND_CSS_SUFFIX):
+			if old + suffix in manifest:
+				assets[new + suffix] = manifest[old + suffix]
+		write_site_island_manifest(assets)
+
+
+def remove_site_island(name: str) -> None:
+	"""Unregister a site island and delete the builds nothing else uses."""
 	with filelock(SITE_ISLANDS_CACHE_KEY):
 		write_site_island_manifest(get_manifest_without(name))
-	shutil.rmtree(get_site_islands_path(folder), ignore_errors=True)
+	remove_unused_site_island_folders()
+
+
+def remove_unused_site_island_folders(keep: set[str | None] | None = None) -> None:
+	"""Delete the build folders no registered island points into, except those in `keep`."""
+	in_use = {get_site_island_folder(url) for url in read_site_island_manifest().values()} | (keep or set())
+	if not os.path.isdir(get_site_islands_path()):
+		return
+	for entry in os.scandir(get_site_islands_path()):
+		if entry.is_dir() and entry.name not in in_use:
+			shutil.rmtree(entry.path, ignore_errors=True)
+
+
+def get_vue_component_doctypes(island: str) -> set[str]:
+	"""The doctypes with a Vue Component field that shows `island`."""
+	return {
+		doctype
+		for source, parent_field, _value_field, filters in get_vue_component_field_sources(island)
+		for doctype in frappe.get_all(source, filters=filters, pluck=parent_field)
+	}
+
+
+def repoint_vue_component_fields(old: str, new: str) -> None:
+	"""Point every Vue Component field that shows island `old` at island `new`."""
+	doctypes = get_vue_component_doctypes(old)
+	for source, _parent_field, value_field, filters in get_vue_component_field_sources(old):
+		frappe.db.set_value(source, filters, value_field, new, update_modified=False)
+
+	for doctype in doctypes:
+		frappe.clear_cache(doctype=doctype)
+
+
+def get_vue_component_field_sources(island: str):
+	"""Where a field's island name is stored: (doctype, parent field, value field, filters)."""
+	return (
+		("Custom Field", "dt", "options", {"fieldtype": "Vue Component", "options": island}),
+		("DocField", "parent", "options", {"fieldtype": "Vue Component", "options": island}),
+		("Property Setter", "doc_type", "value", {"property": "options", "value": island}),
+	)
 
 
 def get_manifest_without(name: str) -> dict[str, str]:
@@ -106,10 +167,10 @@ def get_manifest_without(name: str) -> dict[str, str]:
 
 
 def write_site_island_manifest(assets: dict[str, str]) -> None:
-	frappe.create_folder(get_site_islands_path())
-	manifest_path = get_site_islands_path(SITE_ISLANDS_MANIFEST)
+	manifest_path = get_site_islands_manifest_path()
+	frappe.create_folder(os.path.dirname(manifest_path))
 	# readers take no lock, so they must never see a half-written file
-	with tempfile.NamedTemporaryFile("w", dir=get_site_islands_path(), delete=False) as manifest:
+	with tempfile.NamedTemporaryFile("w", dir=os.path.dirname(manifest_path), delete=False) as manifest:
 		manifest.write(frappe.as_json(assets))
 	os.replace(manifest.name, manifest_path)
 	frappe.client_cache.delete_value(SITE_ISLANDS_CACHE_KEY)
