@@ -25,7 +25,7 @@ frappe.ui.form.ControlVueComponent = class ControlVueComponent extends frappe.ui
 	}
 
 	refresh_input() {
-		if (!this.df.options || !this.get_doc()) return;
+		if (!this.df.options || !this.get_doc() || this.unavailable === this.df.options) return;
 
 		if (this.island) {
 			this.island.update(this.get_props());
@@ -36,6 +36,7 @@ frappe.ui.form.ControlVueComponent = class ControlVueComponent extends frappe.ui
 		this.island.ready.catch((error) => {
 			console.error(error);
 			this.island = null;
+			this.unavailable = this.df.options;
 			this.render_unavailable();
 		});
 	}

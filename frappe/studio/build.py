@@ -16,7 +16,9 @@ from frappe.studio.doctype.studio_component.studio_component import get_island_n
 from frappe.studio.utils import get_exported_app_folders, walk_blocks
 from frappe.utils import get_files_path
 from frappe.utils.island import (
+	ISLAND_JS_SUFFIX,
 	SITE_ISLANDS_FOLDER,
+	get_site_island_assets,
 	get_site_islands_path,
 	set_site_island_assets,
 )
@@ -117,9 +119,9 @@ class StudioAppBuilder:
 		self.page_scripts = scripts
 		return scripts
 
-	def _run_vite_build(self, island_args: list[str] | None = None) -> None:
+	def _run_vite_build(self, extra_args: list[str] | None = None) -> None:
 		"""Execute the yarn build-studio-app command with the given parameters."""
-		if not island_args and not (
+		if not extra_args and not (
 			self.components or self.custom_vue_components or self.page_scripts or self.router_file
 		):
 			click.echo(f"Nothing to build for {self.app_name}, skipping build")
@@ -159,7 +161,7 @@ class StudioAppBuilder:
 		for glob in self.tailwind_content:
 			command += ["--tailwind-content", glob]
 
-		command += island_args or []
+		command += extra_args or []
 
 		studio_app_path = frappe.get_app_source_path("frappe", "studio", "frontend")
 		result = subprocess.run(
@@ -352,10 +354,10 @@ class StudioComponentIslandBuilder(StudioAppBuilder):
 		super().__init__(studio_app=component_id, is_standard=False)
 		self.island_name = get_island_name(component_id)
 		# a new folder per build, because open sessions still load the previous one
-		version = frappe.generate_hash(length=10)
+		self.version = frappe.generate_hash(length=10)
 		self.component_folder = os.path.abspath(get_site_islands_path(component_id))
-		self.out_dir = os.path.join(self.component_folder, version)
-		self.base = f"/files/{SITE_ISLANDS_FOLDER}/{component_id}/{version}/"
+		self.out_dir = os.path.join(self.component_folder, self.version)
+		self.base = f"/files/{SITE_ISLANDS_FOLDER}/{component_id}/{self.version}/"
 		self.component_docs: dict[str, dict] = {}
 
 	def build(self):
@@ -374,18 +376,21 @@ class StudioComponentIslandBuilder(StudioAppBuilder):
 		island = frappe.parse_json(
 			frappe.read_file(os.path.join(self.out_dir, "island.json"), raise_not_found=True)
 		)
+		previous_js = get_site_island_assets().get(self.island_name + ISLAND_JS_SUFFIX)
 		set_site_island_assets(self.island_name, island.js, island.css)
-		self._remove_old_builds()
+		self._remove_old_builds(keep={self.version, self._get_version(previous_js)})
 
-	def _remove_old_builds(self, keep: int = 2):
-		"""Keep this build and the one before it."""
-		builds = sorted(
-			(entry for entry in os.scandir(self.component_folder) if entry.is_dir()),
-			key=lambda entry: entry.stat().st_mtime,
-			reverse=True,
-		)
-		for entry in builds[keep:]:
-			shutil.rmtree(entry.path, ignore_errors=True)
+	def _remove_old_builds(self, keep: set[str | None]):
+		"""Delete every build except this one and the one open sessions still load."""
+		for entry in os.scandir(self.component_folder):
+			if entry.is_dir() and entry.name not in keep:
+				shutil.rmtree(entry.path, ignore_errors=True)
+
+	def _get_version(self, js_url: str | None) -> str | None:
+		"""The build folder a registered island URL points into."""
+		prefix = f"/files/{SITE_ISLANDS_FOLDER}/{self.app_name}/"
+		if js_url and js_url.startswith(prefix):
+			return js_url.removeprefix(prefix).split("/", 1)[0]
 
 	def _add_studio_components(self, block: dict):
 		self._add_studio_component(block.get("componentName"))

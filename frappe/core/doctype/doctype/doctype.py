@@ -2,6 +2,7 @@
 # License: MIT. See LICENSE
 
 import copy
+import functools
 import json
 import os
 import re
@@ -1797,6 +1798,12 @@ def validate_fields(meta: Meta):
 		if getattr(docfield, "max_height", None) and (docfield.max_height[-2:] not in ("px", "em")):
 			frappe.throw(f"Max for {frappe.bold(docfield.fieldname)} height must be in px, em, rem")
 
+	@functools.cache
+	def get_islands_on_site():
+		from frappe.utils.island import get_ui_islands
+
+		return set(get_ui_islands())
+
 	def check_vue_component_options(docfield):
 		if (
 			docfield.fieldtype != "Vue Component"
@@ -1806,8 +1813,6 @@ def validate_fields(meta: Meta):
 		):
 			return
 
-		from frappe.utils.island import get_ui_islands
-
 		if not docfield.options:
 			frappe.throw(
 				_("Options required for Vue Component field {0}").format(
@@ -1815,7 +1820,7 @@ def validate_fields(meta: Meta):
 				),
 				title=_("Missing Island"),
 			)
-		if docfield.options not in get_ui_islands():
+		if docfield.options not in get_islands_on_site():
 			frappe.throw(
 				_('Island "{0}" is not on this site.').format(docfield.options),
 				title=_("Missing Island"),

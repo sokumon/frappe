@@ -128,6 +128,17 @@ class TestPublishStudioComponent(IntegrationTestCase):
 		self.assertTrue(os.path.isdir(self.builder.out_dir))
 		self.assertFalse(os.path.exists(first))
 
+	def test_a_failed_build_never_costs_the_live_one(self):
+		self.publish()
+		live = self.builder.out_dir
+		failed = os.path.join(self.builder.component_folder, "failed")
+		os.makedirs(failed)
+
+		self.publish()
+
+		self.assertTrue(os.path.isdir(live))
+		self.assertFalse(os.path.exists(failed))
+
 	def test_the_island_carries_only_what_the_renderer_reads(self):
 		self.publish()
 
